@@ -13,24 +13,6 @@ Makefile, Kconfig, and Kbuild should only contain additions
 
 There are no constraints on other files. *)
 
-let process_output_to_list2 = fun command ->
-  let chan = Unix.open_process_in command in
-  let res = ref ([] : string list) in
-  let rec process_otl_aux () =
-    let e = input_line chan in
-    res := e::!res;
-    process_otl_aux() in
-  try process_otl_aux ()
-  with End_of_file ->
-    let stat = Unix.close_process_in chan in (List.rev !res,stat)
-let cmd_to_list command =
-  let (l,_) = process_output_to_list2 command in l
-let process_output_to_list = cmd_to_list
-let cmd_to_list_and_status = process_output_to_list2
-
-let llvm = ref false (* true requires single threaded execution *)
-let llvm_path = "/home/julia/forllvm"
-
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Filename.dirname (Array.get Sys.argv 0)
@@ -48,39 +30,39 @@ let avg = ref false
 let cc_count = ref false
 let backport = ref false
 
-let get_commits _ =
-  if not (!list = [])
-  then !list
-  else
-  if !range = ""
-  then
-    cmd_to_list
-      (Printf.sprintf
-	 "git log --oneline --no-merges --pretty=format:\"%%h\" --since=\"%s\" --until=\"%s\""
-	 !start_time !end_time)
-  else
-    cmd_to_list
-      (Printf.sprintf
-	 "git log --oneline --no-merges --pretty=format:\"%%h\" %s" !range)
-
 let parse commit =
+  (* Parse commit and generate list of file change:
+      * List element format: (old_file:str, new_file:str, is_add_only:bool)
+      *)
+
   let get_pieces prev x =
+      (* Extract information from last line of git show --numstat *)
     match Str.split (Str.regexp "[\t ]+") x with
       [added;removed;file] when not (added = "-" || removed = "-") ->
 	(* - used for binary files, such as png doc, don't care *)
 	(int_of_string added,int_of_string removed,file) :: prev
     | _ -> prev  in
+
   let added_command =
+      (* Git show for added files only *)
     Printf.sprintf "git show --diff-filter=A --numstat --pretty=format:\"\" %s"
       commit in
   let deleted_command =
+      (* Git show for deleted files only *)
     Printf.sprintf "git show --diff-filter=D --numstat --pretty=format:\"\" %s"
       commit in
   let modified_command =
+      (* Git show for modified files only *)
     Printf.sprintf "git show --diff-filter=M --numstat --pretty=format:\"\" %s"
       commit in
-  let added = cmd_to_list added_command in
+
+  (*
+   * File extraction from commit
+   * *)
+
+  let added = Tools.cmd_to_list added_command in
   let added_files =
+      (* Extract added files from commit *)
     match added with
       [] -> []
     | ((x::y) as added) ->
@@ -89,7 +71,7 @@ let parse commit =
 	if List.exists (function (_,rem,_) -> rem > 0) pieces
 	then failwith "nothing should be removed"
 	else List.map (function (_,_,fl) -> fl) pieces in
-  let deleted = cmd_to_list deleted_command in
+  let deleted = Tools.cmd_to_list deleted_command in
   let deleted_files =
     match deleted with
       [] -> []
@@ -99,19 +81,22 @@ let parse commit =
 	if List.exists (function (add,_,_) -> add > 0) pieces
 	then failwith "nothing should be added"
 	else List.map (function (_,_,fl) -> fl) pieces in
-  let modified = cmd_to_list modified_command in
+  let modified = Tools.cmd_to_list modified_command in
   let modified =
+      (* TODO: change modified to modified_files for consistency *)
     match modified with
       [] -> []
     | ""::modified -> modified
     | _ -> modified in
   let (add_only,add_and_remove) =
+      (* Split modified files into two groups *)
     let pieces = List.rev(List.fold_left get_pieces [] modified) in
     List.partition (function (_,rem,_) -> rem = 0) pieces in
   let modified_add_only_files =
     List.map (fun (_,_,fl) -> fl) add_only in
   let modified_add_and_remove_files =
     List.map (fun (_,_,fl) -> fl) add_and_remove in
+
   (List.map (fun x -> ("/dev/null",x,true)) added_files) @
   (List.map (fun x -> (x,"/dev/null",false)) deleted_files) @
   (List.map (fun x -> (x,x,true)) modified_add_only_files) @
@@ -160,8 +145,10 @@ let error_warning_note_reduced all = error_warning_note all (*
 let to_ul s = String.concat "_" (Str.split (Str.regexp "/") s)
 
 let run_compile file =
+    (* Try compiling file and display make output to stderr 
+     * Returns (number_of_errors, first lines of error on file) *)
   let ofile = (Filename.chop_extension file) ^ ".o" in
-  let all = cmd_to_list (Printf.sprintf "make %s 2>&1" ofile) in
+  let all = Tools.cmd_to_list (Printf.sprintf "make %s 2>&1" ofile) in
   List.iter (function x -> Printf.eprintf "-> %s\n" x) all;
   let all = read_to_file all ofile in
   let res = List.length (error_warning_note all) in
@@ -194,7 +181,7 @@ let compile_test file commit =
       let cmd =
 	Printf.sprintf "%s/../../../gcc-reduce/gcc-reduce %s" home resfile in
       Printf.eprintf "cmd %s\n" cmd; flush stderr;
-      let reduced = cmd_to_list cmd in
+      let reduced = Tools.cmd_to_list cmd in
       let (chosen_args,reduced) =
 	let (ca,red) =
 	  List.fold_left
@@ -208,15 +195,15 @@ let compile_test file commit =
       let originalres =
 	int_of_string
 	  (List.hd
-	     (cmd_to_list
+	     (Tools.cmd_to_list
 		(Printf.sprintf "grep -c \": error: \" %s" resfile))) +
 	int_of_string
 	  (List.hd
-	     (cmd_to_list
+	     (Tools.cmd_to_list
 		(Printf.sprintf "grep -c \": warning: \" %s" resfile))) -
 	int_of_string
 	  (List.hd
-	     (cmd_to_list
+	     (Tools.cmd_to_list
 		(Printf.sprintf "grep -c \"(near initialization for \" %s"
 		   resfile))) in
       let reducedres = List.length (error_warning_note_reduced reduced) in
@@ -370,25 +357,34 @@ let select_added commits i _ =
 	 then
 	   let meta =
 	     Printf.sprintf
+            (* format: short hash:commit date:author name *)
 	       "git show %s --date=short --pretty=format:\"%%h:%%cd:%%an\""
 	       commit in
 	   let infos = parse commit in
+
+       (* TODO: Restyle that condition vvvvv *)
 	   let ok =
+       (* At least one .c file is created && is requirement && is not antirequirement *)
 	     List.exists
 	       (function (minus,plus,onlyadds) ->
+           (* .c file is created*)
 		 minus = "/dev/null" && c_file plus &&
+           (* File is requirement *)
 		 List.exists
 		   (function req ->
 		     Str.string_match (Str.regexp_string req) plus 0)
 		   !requirement &&
+           (* is not antirequirement *)
 		 not
 		   (List.exists
 		      (function req ->
 			Str.string_match (Str.regexp_string req) plus 0)
-		      !antirequirement))
-	       infos &&
+		      !antirequirement)
+           ) infos &&
+       (* AND for all files *)
 	     List.for_all
-	       (function (minus,plus,onlyadds) ->
+	     (function (minus,plus,onlyadds) ->
+         (* If .c file check if it's in requirement and not in antirequirement *)
 		 if c_file plus
 		 then
 		   let ok =
@@ -402,23 +398,33 @@ let select_added commits i _ =
 			    Str.string_match (Str.regexp_string req) plus 0)
 			  !antirequirement) in
 		   if ok
+           (* If true file must be created *)
 		   then minus = "/dev/null"
+           (* Else file must be add only *)
 		   else onlyadds
 		 else
+        (* If .h file must be add-only *)
 		   if h_file plus
 		   then onlyadds
-		   else true)
+        (* No constrains on other files *)
+		   else true
+         )
 	       infos &&
+       (* AND the commit contains additions to a Makefile or another build file *)
 	     List.exists
 	       (function (minus,plus,onlyadds) ->
 		 List.mem (Filename.basename plus)
 		   ["Makefile";"Kconfig";"Kbuild"] &&
 		 onlyadds)
 	       infos in
+       (* TODO: Restyle that condition ^^^^^ *)
+
 	   if ok
 	   then
 	     begin
+             (* Extract file name of files still existing in the commit *)
 	       let files = List.map (function (_,plus,_) -> plus) infos in
+             (* Check if files still exist in the target directory *)
 	       let ok =
 		 List.for_all
 		   (function file -> Sys.file_exists (!reference^"/"^file))
@@ -430,6 +436,7 @@ let select_added commits i _ =
 		  (git_setup commit;
 		   List.for_all
 		     (fun file ->
+                (* No compilation errors must be present *)
 		       not (c_file file) || (fst(run_compile file)) = 0)
 		     files)) in
 	       if ok
@@ -453,7 +460,7 @@ let select_added commits i _ =
 			     ())
 			 files
 		     end);
-		   let meta = List.hd (cmd_to_list meta) in
+		   let meta = List.hd (Tools.cmd_to_list meta) in
 		   (if !cc_count then pre_preparedir (meta,files));
 		   let res =
 		     (meta,
@@ -470,7 +477,7 @@ let select_added commits i _ =
 				  Printf.sprintf
 				    "git log --oneline %s..v%s -- %s | wc -l"
 				    commit !target file in
-				(int_of_string(List.hd(cmd_to_list cmd)),
+				(int_of_string(List.hd(Tools.cmd_to_list cmd)),
 				 0, "") in
 			    (file,ct))
 			  files)) in
@@ -510,7 +517,7 @@ let process l =
 	info)
     l;
   let data =
-    cmd_to_list
+    Tools.cmd_to_list
       (Printf.sprintf "cd %s/%s_results; find . -name Makefile" home !key) in
   let data =
     List.map (fun x -> List.hd (Str.split (Str.regexp "/Makefile") x)) data in
@@ -543,14 +550,30 @@ let usage = ""
 
 let _ =
   Arg.parse (Arg.align options) anonymous usage;
-  reference := List.hd (cmd_to_list ("locate /linux-" ^ !target));
+
+  (* Get first directory for target 
+   * TODO: catch exception if locate fails 
+   * Maybe use --limit=1 *)
+  reference := List.hd (Tools.cmd_to_list ("locate /linux-" ^ !target));
   let dir = Printf.sprintf "%s/%s" home !key in
   let _ =
+      (* Create a working directory, purge the content if the dir exist
+       * TODO: check that dir is a directory
+       * Remove error message if dir already empty *)
     if Sys.file_exists dir
     then Sys.command (Printf.sprintf "/bin/rm %s/*" dir)
     else Sys.command (Printf.sprintf "mkdir %s" dir) in
+
   Sys.chdir !git;
-  let commits = get_commits() in
+
+  let commits =
+      if not (!list = [])
+      then !list
+      else if not (!range = "")
+      then Commits.list_by_range !range
+      else Commits.list_by_dates !start_time !end_time
+  in
+
   Printf.eprintf "chose %d commits\n" (List.length commits);
   let res =
     if !cores = 1

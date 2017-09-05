@@ -1,9 +1,9 @@
-select_drivers: select_main.ml process
+select_drivers: select_main.ml tools.ml commits.ml process
 	ocamlc -g -o select_drivers \
 	str.cma nums.cma unix.cma bigarray.cma \
 	`ocamlfind query parmap`/parmap.cma \
 	-I `ocamlfind query parmap` \
-	select_main.ml
+	tools.ml commits.ml select_main.ml
 
 process: processErrors.ml
 	ocamlopt  -o process unix.cmxa str.cmxa processErrors.ml
