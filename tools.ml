@@ -15,5 +15,9 @@ let cmd_to_list command =
 
   List.rev !res
 
+let is_file_in_paths file paths =
+    List.exists (function path ->
+        Str.string_match (Str.regexp_string path) file 0
+    ) paths
 
 ;;

@@ -13,6 +13,8 @@ Makefile, Kconfig, and Kbuild should only contain additions
 
 There are no constraints on other files. *)
 
+type commit = Commits.commit
+
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Filename.dirname (Array.get Sys.argv 0)
@@ -29,78 +31,6 @@ let antirequirement = ref ["drivers/staging/"]
 let avg = ref false
 let cc_count = ref false
 let backport = ref false
-
-let parse commit =
-  (* Parse commit and generate list of file change:
-      * List element format: (old_file:str, new_file:str, is_add_only:bool)
-      *)
-
-  let get_pieces prev x =
-      (* Extract information from last line of git show --numstat *)
-    match Str.split (Str.regexp "[\t ]+") x with
-      [added;removed;file] when not (added = "-" || removed = "-") ->
-	(* - used for binary files, such as png doc, don't care *)
-	(int_of_string added,int_of_string removed,file) :: prev
-    | _ -> prev  in
-
-  let added_command =
-      (* Git show for added files only *)
-    Printf.sprintf "git show --diff-filter=A --numstat --pretty=format:\"\" %s"
-      commit in
-  let deleted_command =
-      (* Git show for deleted files only *)
-    Printf.sprintf "git show --diff-filter=D --numstat --pretty=format:\"\" %s"
-      commit in
-  let modified_command =
-      (* Git show for modified files only *)
-    Printf.sprintf "git show --diff-filter=M --numstat --pretty=format:\"\" %s"
-      commit in
-
-  (*
-   * File extraction from commit
-   * *)
-
-  let added = Tools.cmd_to_list added_command in
-  let added_files =
-      (* Extract added files from commit *)
-    match added with
-      [] -> []
-    | ((x::y) as added) ->
-	let added = if x = "" then y else added in
-	let pieces = List.rev(List.fold_left get_pieces [] added) in
-	if List.exists (function (_,rem,_) -> rem > 0) pieces
-	then failwith "nothing should be removed"
-	else List.map (function (_,_,fl) -> fl) pieces in
-  let deleted = Tools.cmd_to_list deleted_command in
-  let deleted_files =
-    match deleted with
-      [] -> []
-    | ((x::y) as deleted) ->
-	let deleted = if x = "" then y else deleted in
-	let pieces = List.rev(List.fold_left get_pieces [] deleted) in
-	if List.exists (function (add,_,_) -> add > 0) pieces
-	then failwith "nothing should be added"
-	else List.map (function (_,_,fl) -> fl) pieces in
-  let modified = Tools.cmd_to_list modified_command in
-  let modified =
-      (* TODO: change modified to modified_files for consistency *)
-    match modified with
-      [] -> []
-    | ""::modified -> modified
-    | _ -> modified in
-  let (add_only,add_and_remove) =
-      (* Split modified files into two groups *)
-    let pieces = List.rev(List.fold_left get_pieces [] modified) in
-    List.partition (function (_,rem,_) -> rem = 0) pieces in
-  let modified_add_only_files =
-    List.map (fun (_,_,fl) -> fl) add_only in
-  let modified_add_and_remove_files =
-    List.map (fun (_,_,fl) -> fl) add_and_remove in
-
-  (List.map (fun x -> ("/dev/null",x,true)) added_files) @
-  (List.map (fun x -> (x,"/dev/null",false)) deleted_files) @
-  (List.map (fun x -> (x,x,true)) modified_add_only_files) @
-  (List.map (fun x -> (x,x,false)) modified_add_and_remove_files)
 
 let c_file file = Filename.check_suffix file ".c"
 let h_file file = Filename.check_suffix file ".h"
@@ -359,71 +289,63 @@ let select_added commits i _ =
 	     Printf.sprintf
             (* format: short hash:commit date:author name *)
 	       "git show %s --date=short --pretty=format:\"%%h:%%cd:%%an\""
-	       commit in
-	   let infos = parse commit in
+	       commit.Commits.hash in
 
        (* TODO: Restyle that condition vvvvv *)
 	   let ok =
        (* At least one .c file is created && is requirement && is not antirequirement *)
-	     List.exists
-	       (function (minus,plus,onlyadds) ->
-           (* .c file is created*)
-		 minus = "/dev/null" && c_file plus &&
-           (* File is requirement *)
-		 List.exists
-		   (function req ->
-		     Str.string_match (Str.regexp_string req) plus 0)
-		   !requirement &&
-           (* is not antirequirement *)
-		 not
-		   (List.exists
-		      (function req ->
-			Str.string_match (Str.regexp_string req) plus 0)
-		      !antirequirement)
-           ) infos &&
-       (* AND for all files *)
-	     List.for_all
-	     (function (minus,plus,onlyadds) ->
-         (* If .c file check if it's in requirement and not in antirequirement *)
-		 if c_file plus
-		 then
-		   let ok =
-		     List.exists
-		       (function req ->
-			 Str.string_match (Str.regexp_string req) plus 0)
-		       !requirement &&
-		     not
-		       (List.exists
-			  (function req ->
-			    Str.string_match (Str.regexp_string req) plus 0)
-			  !antirequirement) in
-		   if ok
-           (* If true file must be created *)
-		   then minus = "/dev/null"
-           (* Else file must be add only *)
-		   else onlyadds
-		 else
-        (* If .h file must be add-only *)
-		   if h_file plus
-		   then onlyadds
-        (* No constrains on other files *)
-		   else true
-         )
-	       infos &&
-       (* AND the commit contains additions to a Makefile or another build file *)
-	     List.exists
-	       (function (minus,plus,onlyadds) ->
-		 List.mem (Filename.basename plus)
-		   ["Makefile";"Kconfig";"Kbuild"] &&
-		 onlyadds)
-	       infos in
-       (* TODO: Restyle that condition ^^^^^ *)
+	    List.exists
+	    ( function a -> match a with
+        | {Commits.file_name=file_name; Commits.modification=Commits.Created} 
+            when (
+                c_file file_name &&
+                Tools.is_file_in_paths file_name !requirement &&
+                not (Tools.is_file_in_paths file_name !antirequirement)
+            ) -> true
+        | _ -> false
+        ) commit.Commits.files &&
 
+       (* AND for all files *)
+	    List.for_all
+        ( function a -> match a with
+        | {Commits.file_name=file_name; Commits.modification=Commits.Created}
+            when (
+                c_file file_name &&
+                Tools.is_file_in_paths file_name !requirement &&
+                not (Tools.is_file_in_paths file_name !antirequirement)
+            ) -> true
+        | {Commits.file_name=file_name; Commits.modification=Commits.AddOnly}
+            when (
+                (c_file file_name &&
+                    (not (Tools.is_file_in_paths file_name !requirement) ||
+                    Tools.is_file_in_paths file_name !antirequirement)
+                ) || (h_file file_name)
+            ) -> true
+        | {Commits.file_name=file_name; _ }
+            when not (
+                (c_file file_name) ||
+                (h_file file_name)
+            ) -> true
+        | _ -> false
+        ) commit.Commits.files &&
+
+       (* AND the commit contains additions to a Makefile or another build file *)
+	    List.exists
+	    ( function a -> match a with
+        | {Commits.file_name=file_name; Commits.modification=Commits.Created | Commits.AddOnly} 
+            when (
+                List.mem (Filename.basename file_name) ["Makefile";"Kconfig";"Kbuild"]
+            ) -> true
+        | _ -> false
+        ) commit.Commits.files
+       (* TODO: Restyle that condition ^^^^^ *)
+        in
 	   if ok
 	   then
 	     begin
              (* Extract file name of files still existing in the commit *)
-	       let files = List.map (function (_,plus,_) -> plus) infos in
+             let files = List.map (function a -> a.Commits.file_name) commit.Commits.files in
+             (* FIXME *) files end else [] else []) commits)(*
              (* Check if files still exist in the target directory *)
 	       let ok =
 		 List.for_all
@@ -489,7 +411,7 @@ let select_added commits i _ =
 	   else []
 	 else [])
        commits)
-    
+*)    
 let process l =
   let unsome =
     List.fold_left
@@ -566,6 +488,7 @@ let _ =
 
   Sys.chdir !git;
 
+  Printf.eprintf "Listing commits\n%!";
   let commits =
       if not (!list = [])
       then !list
@@ -573,12 +496,19 @@ let _ =
       then Commits.list_by_range !range
       else Commits.list_by_dates !start_time !end_time
   in
+  Printf.eprintf "Found %d commits\n%!" (List.length commits);
 
-  Printf.eprintf "chose %d commits\n" (List.length commits);
+  let parsed = Commits.parse_commits commits in
+  Printf.eprintf "Filtering commits\n%!";
   let res =
     if !cores = 1
-    then [select_added commits 0 ()]
+    then [select_added parsed 0 ()]
     else
-      Parmap.parmapi (select_added commits) ~ncores:(!cores)
+      Parmap.parmapi (select_added parsed) ~ncores:(!cores)
 	(Parmap.L (Array.to_list (Array.make !cores ()))) in
+  (*
   process (List.concat res)
+  *)
+  let res = List.concat res in
+  Printf.eprintf "Remaining %d commits\n%!" (List.length res);
+  List.iter (function a -> Printf.printf "%s\n" a;) res
