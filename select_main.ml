@@ -167,19 +167,9 @@ let run_compile file =
   let res = List.length (error_warning_note all) in
   (res,all)
 
-let llrun_compile file =
-  let ofile = (Filename.chop_extension file) ^ ".o" in
-  let all =
-    cmd_to_list
-      (Printf.sprintf "cd %s; make HOSTCC=clang CC=clang %s 2>&1"
-	 llvm_path ofile) in
-  read_to_file all ofile
-
 let compile_test file commit =
   let resfile =
     Printf.sprintf "%s/%s/%s_%s" home !key (to_ul file) commit in
-  let llresfile =
-    Printf.sprintf "%s/%s/%s_llvm_%s" home !key (to_ul file) commit in
   let res =
     if Sys.file_exists resfile
     then 1
@@ -197,20 +187,6 @@ let compile_test file commit =
   if res > 0
   then
     begin
-
-      (if !llvm
-      then
-	begin
-	  if Sys.file_exists llresfile
-	  then ()
-	  else
-	    begin
-	      let all = llrun_compile file in
-	      let o = open_out llresfile in
-	      List.iter (function x -> Printf.fprintf o "%s\n" x) all;
-	      close_out o
-	    end
-	end);
 
       (*let cmd =
 	Printf.sprintf "%s/process --sp %s --linux %s/ %s" home home !git
@@ -243,24 +219,8 @@ let compile_test file commit =
 	     (cmd_to_list
 		(Printf.sprintf "grep -c \"(near initialization for \" %s"
 		   resfile))) in
-      let llres =
-	if !llvm
-	then
-	  int_of_string
-	    (List.hd
-	       (cmd_to_list
-		  (Printf.sprintf "grep -c \": error: \" %s" llresfile))) +
-	    int_of_string
-	    (List.hd
-	       (cmd_to_list
-		  (Printf.sprintf "grep -c \": warning: \" %s" llresfile)))
-	else 0 in
       let reducedres = List.length (error_warning_note_reduced reduced) in
-      (if !llvm
-      then
-	Printf.eprintf "reduced res %d -> %d -> %d\n" originalres llres
-	  reducedres
-      else Printf.eprintf "reduced res %d -> %d\n" originalres reducedres);
+      Printf.eprintf "reduced res %d -> %d\n" originalres reducedres;
       flush stderr;
       (if reducedres > 0
       then
@@ -396,15 +356,10 @@ let preparedir (meta,files) =
       close_out o
     end
 
-let git_setup version llvm =
+let git_setup version =
   check_command "git clean -dfx";
   check_command ("git reset --hard "^version);
-  check_command "make allyesconfig";
-  if llvm
-  then
-    check_command
-      ("cd "^llvm_path^
-       "; git reset --hard 21da162c1ed53f8; make HOSTCC=clang CC=clang allyesconfig")
+  check_command "make allyesconfig"
 
 let select_added commits i _ =
   (if !cores > 1 then Sys.chdir (giti i));
@@ -472,7 +427,7 @@ let select_added commits i _ =
 		 ok &&
 		 ((not !cc_count) ||
 		  (* check compilation in the old version *)
-		  (git_setup commit false;
+		  (git_setup commit;
 		   List.for_all
 		     (fun file ->
 		       not (c_file file) || (fst(run_compile file)) = 0)
@@ -484,8 +439,7 @@ let select_added commits i _ =
 		   then
 		     begin
 		       git_setup
-			 (if !backport then commit else ("v" ^ !target))
-			 !llvm;
+			 (if !backport then commit else ("v" ^ !target));
 		       List.iter
 			 (function file ->
 			   let com =
@@ -496,14 +450,6 @@ let select_added commits i _ =
 			       Sys.command
 				 (Printf.sprintf "git show %s:%s > %s"
 				    com file file) in
-			     let _ =
-			       if !llvm
-			       then
-				 ignore
-				   (Sys.command
-				      (Printf.sprintf
-					 "git show %s:%s > %s/%s"
-					 com file llvm_path file)) in
 			     ())
 			 files
 		     end);
@@ -589,7 +535,6 @@ let options =
     "--cc-count", Arg.Set cc_count, "order by number of compiler output lines";
     "--cores", Arg.Set_int cores, "number of cores";
     "--git", Arg.Set_string git, "Linux source code";
-    "--llvm", Arg.Set llvm, "generate messages with llvm";
     "--backport", Arg.Set backport, "backport from dest to src"]
 
 let anonymous s = failwith "no anonymous arguments"
