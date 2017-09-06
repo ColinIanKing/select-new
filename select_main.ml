@@ -290,13 +290,14 @@ let select_added commits i _ =
             (* format: short hash:commit date:author name *)
 	       "git show %s --date=short --pretty=format:\"%%h:%%cd:%%an\""
 	       commit.Commits.hash in
-
-       (* TODO: Restyle that condition vvvvv *)
-	   let ok =
-       (* At least one .c file is created && is requirement && is not antirequirement *)
+	   let is_driver_creation =
+        (* Checks if the commit introduce a new driver
+         * Implementation of conditions precised at the start of this file
+         *)
 	    List.exists
 	    ( function a -> match a with
-        | {Commits.file_name=file_name; Commits.modification=Commits.Created} 
+        | {Commits.file_name=file_name;
+           Commits.modification=Commits.Created}
             when (
                 c_file file_name &&
                 Tools.is_file_in_paths file_name !requirement &&
@@ -305,22 +306,27 @@ let select_added commits i _ =
         | _ -> false
         ) commit.Commits.files &&
 
-       (* AND for all files *)
 	    List.for_all
         ( function a -> match a with
-        | {Commits.file_name=file_name; Commits.modification=Commits.Created}
-            when (
-                c_file file_name &&
-                Tools.is_file_in_paths file_name !requirement &&
-                not (Tools.is_file_in_paths file_name !antirequirement)
-            ) -> true
-        | {Commits.file_name=file_name; Commits.modification=Commits.AddOnly}
+        | {Commits.file_name=file_name;
+           Commits.modification=Commits.Created}
             when (
                 (c_file file_name &&
-                    (not (Tools.is_file_in_paths file_name !requirement) ||
-                    Tools.is_file_in_paths file_name !antirequirement)
-                ) || (h_file file_name)
+                Tools.is_file_in_paths file_name !requirement &&
+                not (Tools.is_file_in_paths file_name !antirequirement)
+                )
             ) -> true
+        | {Commits.file_name=file_name;
+           Commits.modification=Commits.AddOnly}
+            when (
+                (c_file file_name &&
+                not (Tools.is_file_in_paths file_name !requirement &&
+                    not (Tools.is_file_in_paths file_name !antirequirement))
+                )
+            ) -> true
+        | {Commits.file_name=file_name;
+           Commits.modification= Commits.Created | Commits.AddOnly}
+            when (h_file file_name) -> true
         | {Commits.file_name=file_name; _ }
             when not (
                 (c_file file_name) ||
@@ -329,23 +335,22 @@ let select_added commits i _ =
         | _ -> false
         ) commit.Commits.files &&
 
-       (* AND the commit contains additions to a Makefile or another build file *)
 	    List.exists
 	    ( function a -> match a with
-        | {Commits.file_name=file_name; Commits.modification=Commits.Created | Commits.AddOnly} 
+        | {Commits.file_name=file_name;
+           Commits.modification= Commits.Created | Commits.AddOnly}
             when (
                 List.mem (Filename.basename file_name) ["Makefile";"Kconfig";"Kbuild"]
             ) -> true
         | _ -> false
         ) commit.Commits.files
-       (* TODO: Restyle that condition ^^^^^ *)
         in
-	   if ok
+
+	   if is_driver_creation
 	   then
 	     begin
              (* Extract file name of files still existing in the commit *)
              let files = List.map (function a -> a.Commits.file_name) commit.Commits.files in
-             (* FIXME *) files end else [] else []) commits)(*
              (* Check if files still exist in the target directory *)
 	       let ok =
 		 List.for_all
@@ -355,7 +360,7 @@ let select_added commits i _ =
 		 ok &&
 		 ((not !cc_count) ||
 		  (* check compilation in the old version *)
-		  (git_setup commit;
+		  (git_setup commit.Commits.hash;
 		   List.for_all
 		     (fun file ->
                 (* No compilation errors must be present *)
@@ -368,11 +373,11 @@ let select_added commits i _ =
 		   then
 		     begin
 		       git_setup
-			 (if !backport then commit else ("v" ^ !target));
+			 (if !backport then commit.Commits.hash else ("v" ^ !target));
 		       List.iter
 			 (function file ->
 			   let com =
-			     if !backport then ("v" ^ !target) else commit in
+			     if !backport then ("v" ^ !target) else commit.Commits.hash in
 			   if c_file file || h_file file
 			   then
 			     let _ =
@@ -392,13 +397,13 @@ let select_added commits i _ =
 			      if !cc_count
 			      then
 				if c_file file
-				then compile_test file commit
+				then compile_test file commit.Commits.hash
 				else (0,0,"")
 			      else (* count commits *)
 				let cmd =
 				  Printf.sprintf
 				    "git log --oneline %s..v%s -- %s | wc -l"
-				    commit !target file in
+				    commit.Commits.hash !target file in
 				(int_of_string(List.hd(Tools.cmd_to_list cmd)),
 				 0, "") in
 			    (file,ct))
@@ -411,7 +416,7 @@ let select_added commits i _ =
 	   else []
 	 else [])
        commits)
-*)    
+
 let process l =
   let unsome =
     List.fold_left
@@ -506,9 +511,4 @@ let _ =
     else
       Parmap.parmapi (select_added parsed) ~ncores:(!cores)
 	(Parmap.L (Array.to_list (Array.make !cores ()))) in
-  (*
   process (List.concat res)
-  *)
-  let res = List.concat res in
-  Printf.eprintf "Remaining %d commits\n%!" (List.length res);
-  List.iter (function a -> Printf.printf "%s\n" a;) res

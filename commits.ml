@@ -67,7 +67,7 @@ let parse_commits commits =
         let parse hash line =
             match get_pieces line with
             | Hash(hash) -> hash (* Update current commit hash *)
-            | Stat(added, 0, file) when (added > 0) ->
+            | Stat(added, 0, file) -> (* Note that added can be 0 if permissions changed *)
                 (* Add files in commit to the table *)
                 Hashtbl.add table hash {file_name=file; modification=Created}; hash 
             | Stat(_, deleted, _) -> failwith "Error: Nothing should be removed !"
@@ -81,7 +81,7 @@ let parse_commits commits =
         let parse hash line =
             match get_pieces line with
             | Hash(hash) -> hash (* Update current commit hash *)
-            | Stat(0, deleted, file) when (deleted > 0) ->
+            | Stat(0, deleted, file) ->
                 (* Add files in commit to the table *)
                 Hashtbl.add table hash {file_name=file; modification=Deleted}; hash 
             | Stat(added, _, _) -> failwith "Error: Nothing should be added !"
