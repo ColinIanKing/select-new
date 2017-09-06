@@ -17,7 +17,7 @@ type commit = Commits.commit
 
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
-let home = Filename.dirname (Array.get Sys.argv 0)
+let home = Sys.getcwd ()
 let target = ref "4.6"
 let reference = ref ""
 let cores = ref 22
