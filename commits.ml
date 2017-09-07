@@ -22,23 +22,30 @@ let git_log_common =
 
 
 let list_by_dates start_date end_date =
-    (* Returns the list of short hashes of commits 
+    (* Returns the list of short hashes of commits
     * that happened between start_date and end_date*)
     let git_command = git_log_common ^ (sprintf "--since=\"%s\" --until=\"%s\"" start_date end_date) in
     Tools.cmd_to_list git_command
 
 
 let list_by_range range =
-    (* Returns the list of short hashes of commits 
+    (* Returns the list of short hashes of commits
     * that happened in range *)
     let git_command = git_log_common ^ range in
     Tools.cmd_to_list git_command
 
 
 let list_by_files files =
-    (* Returns the list of short hashes of commits 
+    (* Returns the list of short hashes of commits
     * that concerns files *)
     let git_command = git_log_common ^ (String.concat " " files) in
+    Tools.cmd_to_list git_command
+
+let list_by_hash_list hashes =
+    (* Reformat the hashes to short hash format *)
+    let git_command =
+        "git show --pretty=format:\"%h\" -s " ^ (String.concat " " hashes)
+    in
     Tools.cmd_to_list git_command
 
 
