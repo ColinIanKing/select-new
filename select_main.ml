@@ -341,80 +341,77 @@ let keep_added commits =
     List.filter driver_creation_filter commits
 
 
-let select_added commits i _ =
-  (if !cores > 1 then Sys.chdir (giti i));
-  List.concat
-    (List.mapi
-       (fun j commit ->
-	 if i = j mod !cores
-	 then
-         (* Extract file name of files still existing in the commit *)
-         let files = List.map (function a -> a.Commits.file_name)
-            commit.Commits.files
-         in
-         (* Check if files still exist in the target directory *)
-       let ok =
-	 List.for_all
-	   (function file -> Sys.file_exists (!reference^"/"^file))
-	   files in
-       let ok =
-	 ok &&
-	 ((not !cc_count) ||
-	  (* check compilation in the old version *)
-	  (git_setup commit.Commits.hash;
-	   List.for_all
-	     (fun file ->
-            (* No compilation errors must be present *)
-	       not (c_file file) || (fst(run_compile file)) = 0)
-	     files)) in
-       if ok
+let compile commit =
+    (if ((Parmap.get_ncores ()) != 1)
+        then Sys.chdir (giti (Parmap.get_rank ()))
+    );
+
+    (* Extract file name of files still existing in the commit *)
+    let files = List.map (function a -> a.Commits.file_name)
+        commit.Commits.files
+    in
+
+    (* Check if files still exist in the target directory *)
+    let ok =
+        List.for_all
+        (function file -> Sys.file_exists (!reference^"/"^file))
+        files
+    in
+    let ok = ok &&
+    ((not !cc_count) ||
+    (* check compilation in the old version *)
+    (git_setup commit.Commits.hash;
+    List.for_all
+     (fun file ->
+        (* No compilation errors must be present *)
+       not (c_file file) || (fst(run_compile file)) = 0)
+     files)) in
+    if ok
+    then
+    begin
+    (if !cc_count
+    then
+     begin
+       git_setup
+     (if !backport then commit.Commits.hash else ("v" ^ !target));
+       List.iter
+     (function file ->
+       let com =
+         if !backport then ("v" ^ !target) else commit.Commits.hash in
+       if c_file file || h_file file
        then
-	 begin
-	   (if !cc_count
-	   then
-	     begin
-	       git_setup
-		 (if !backport then commit.Commits.hash else ("v" ^ !target));
-	       List.iter
-		 (function file ->
-		   let com =
-		     if !backport then ("v" ^ !target) else commit.Commits.hash in
-		   if c_file file || h_file file
-		   then
-		     let _ =
-		       Sys.command
-			 (Printf.sprintf "git show %s:%s > %s"
-			    com file file) in
-		     ())
-		 files
-	     end);
-	   let meta = let open Commits in (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author) in (*FIXME*)
-	   (if !cc_count then pre_preparedir (meta,files));
-	   let res =
-	     (meta,
-	       (List.map
-		  (function file ->
-		    let ct =
-		      if !cc_count
-		      then
-			if c_file file
-			then compile_test file commit.Commits.hash
-			else (0,0,"")
-		      else (* count commits *)
-			let cmd =
-			  Printf.sprintf
-			    "git log --oneline %s..v%s -- %s | wc -l"
-			    commit.Commits.hash !target file in
-			(int_of_string(List.hd(Tools.cmd_to_list cmd)),
-			 0, "") in
-		    (file,ct))
-		  files)) in
-	   (if !cc_count then preparedir res);
-	   [res]
-	 end
-       else []
-	 else [])
-       commits)
+         let _ =
+           Sys.command
+	     (Printf.sprintf "git show %s:%s > %s"
+	        com file file) in
+         ())
+     files
+     end);
+    let meta = let open Commits in (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author) in (*FIXME*)
+    (if !cc_count then pre_preparedir (meta,files));
+    let res =
+     (meta,
+       (List.map
+      (function file ->
+        let ct =
+          if !cc_count
+          then
+	    if c_file file
+	    then compile_test file commit.Commits.hash
+	    else (0,0,"")
+          else (* count commits *)
+	    let cmd =
+	      Printf.sprintf
+	        "git log --oneline %s..v%s -- %s | wc -l"
+	        commit.Commits.hash !target file in
+	    (int_of_string(List.hd(Tools.cmd_to_list cmd)),
+	     0, "") in
+        (file,ct))
+      files)) in
+    (if !cc_count then preparedir res);
+    [res]
+    end
+    else []
 
 let process l =
   let unsome =
@@ -508,10 +505,6 @@ let _ =
   Printf.eprintf "%d commits are adding a driver\n%!"
     (List.length driver_add);
 
-  let res =
-    if !cores = 1
-    then [select_added driver_add 0 ()]
-    else
-      Parmap.parmapi (select_added driver_add) ~ncores:(!cores)
-	(Parmap.L (Array.to_list (Array.make !cores ()))) in
+  Printf.eprintf "Checking compilation in introduction commit version\n%!";
+  let res = Parmap.parmap compile (Parmap.L(driver_add)) ~ncores:(!cores) in
   process (List.concat res)
