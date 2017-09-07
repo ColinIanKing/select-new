@@ -12,44 +12,53 @@ type show_line =
     | None
 
 type commit_file = { file_name : string; modification : modification }
-type commit = { hash : string; files: commit_file list }
+type meta = { date: string; author: string }
+type commit = { hash : string; files: commit_file list; meta: meta }
 
 
 let git_log_common =
     (* Common command line for git log
      * We only need commits that add something *)
-    "git log --oneline --no-merges --pretty=format:\"%h\" --diff-filter=A "
+    "git log --date=short --oneline --no-merges --pretty=format:\"%h:%cd:%an\" --diff-filter=A "
 
+let list_by input_string =
+    let git_output = Tools.cmd_to_list input_string in
+    List.map (function line ->
+        match Str.split (Str.regexp_string ":") line with
+        | [hash; date; author] -> (hash, date, author)
+        | line -> failwith ("Incorrect git output: " ^ (String.concat ":" line))
+    ) git_output
 
 let list_by_dates start_date end_date =
     (* Returns the list of short hashes of commits
     * that happened between start_date and end_date*)
     let git_command = git_log_common ^ (sprintf "--since=\"%s\" --until=\"%s\"" start_date end_date) in
-    Tools.cmd_to_list git_command
+    list_by git_command
 
 
 let list_by_range range =
     (* Returns the list of short hashes of commits
     * that happened in range *)
     let git_command = git_log_common ^ range in
-    Tools.cmd_to_list git_command
+    list_by git_command
 
 
 let list_by_files files =
     (* Returns the list of short hashes of commits
     * that concerns files *)
     let git_command = git_log_common ^ (String.concat " " files) in
-    Tools.cmd_to_list git_command
+    list_by git_command
 
 let list_by_hash_list hashes =
     (* Reformat the hashes to short hash format *)
     let git_command =
-        "git show --pretty=format:\"%h\" -s " ^ (String.concat " " hashes)
+        "git show --pretty=format:\"%h:%cd:%an\" -s " ^ (String.concat " " hashes)
     in
-    Tools.cmd_to_list git_command
+    list_by git_command
 
 
-let parse_commits commits =
+let parse_commits commits_with_meta =
+    let commits = List.map (function (hash, _, _) -> hash) commits_with_meta in
     let nb_commits = List.length commits in
     let table = Hashtbl.create nb_commits in
 
@@ -107,7 +116,7 @@ let parse_commits commits =
                 Hashtbl.add table hash {file_name=file; modification=AddOnly}; hash 
             | Stat(_, _, file) ->
                 (* Add files in commit to the table *)
-                Hashtbl.add table hash {file_name=file; modification=Modified}; hash 
+                Hashtbl.add table hash {file_name=file; modification=Modified}; hash
             | None -> hash
         in
         ignore (List.fold_left parse "" modified);
@@ -117,9 +126,9 @@ let parse_commits commits =
     parse_deleted ();
     parse_modified ();
 
-    let table_to_commit hash =
+    let table_to_commit (hash, date, author) =
         let commit_files = Hashtbl.find_all table hash in
-        { hash=hash; files=commit_files }
+        { hash=hash; files=commit_files; meta={date=date; author=author} }
     in
-    List.map table_to_commit commits
+    List.map table_to_commit commits_with_meta
 ;;
