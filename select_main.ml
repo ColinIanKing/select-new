@@ -342,8 +342,9 @@ let keep_added commits =
 
 
 let compile commit =
+    let rank = Parmap.get_rank () in
     (if ((Parmap.get_ncores ()) != 1)
-        then Sys.chdir (giti (Parmap.get_rank ()))
+        then Sys.chdir (giti rank)
     );
 
     (* Extract file name of files still existing in the commit *)
@@ -357,63 +358,76 @@ let compile commit =
         (function file -> Sys.file_exists (!reference^"/"^file))
         files
     in
-    let ok = ok &&
-    ((not !cc_count) ||
-    (* check compilation in the old version *)
-    (git_setup commit.Commits.hash;
-    List.for_all
-     (fun file ->
-        (* No compilation errors must be present *)
-       not (c_file file) || (fst(run_compile file)) = 0)
-     files)) in
-    if ok
-    then
+
+    let meta =
+        let open Commits in
+        (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author)
+    in
+
+    let ok = ok && if !cc_count then
     begin
-    (if !cc_count
-    then
-     begin
-       git_setup
-     (if !backport then commit.Commits.hash else ("v" ^ !target));
-       List.iter
-     (function file ->
-       let com =
-         if !backport then ("v" ^ !target) else commit.Commits.hash in
-       if c_file file || h_file file
-       then
-         let _ =
-           Sys.command
-	     (Printf.sprintf "git show %s:%s > %s"
-	        com file file) in
-         ())
-     files
-     end);
-    let meta = let open Commits in (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author) in (*FIXME*)
-    (if !cc_count then pre_preparedir (meta,files));
-    let res =
-     (meta,
-       (List.map
-      (function file ->
-        let ct =
-          if !cc_count
-          then
-	    if c_file file
-	    then compile_test file commit.Commits.hash
-	    else (0,0,"")
-          else (* count commits *)
-	    let cmd =
-	      Printf.sprintf
-	        "git log --oneline %s..v%s -- %s | wc -l"
-	        commit.Commits.hash !target file in
-	    (int_of_string(List.hd(Tools.cmd_to_list cmd)),
-	     0, "") in
-        (file,ct))
-      files)) in
-    (if !cc_count then preparedir res);
-    [res]
+        (* Check compilation in the old version
+         * No compilation errors must be present *)
+        let compile_ok =
+            git_setup commit.Commits.hash;
+            List.for_all (fun file ->
+                not (c_file file) ||
+                (fst(run_compile file)) = 0
+            ) files in
+        if compile_ok then
+        begin
+            let version = if !backport
+                then commit.Commits.hash
+                else ("v" ^ !target)
+            in
+            git_setup version;
+
+
+            List.iter (function file ->
+                let com = if !backport
+                    then ("v" ^ !target)
+                    else commit.Commits.hash
+                in
+                if c_file file || h_file file then
+                    (* Copy driver files into repository *)
+                    ignore (Sys.command
+                    (Printf.sprintf "git show %s:%s > %s" com file file))
+            ) files;
+        pre_preparedir (meta,files);
+        true
+        end
+        else false
+    end else true
+    in
+
+
+    if ok then
+    begin
+        (*let res = (meta, (List.map *)
+        let compile_res =
+            (List.map (function file ->
+                let ct =
+                    if !cc_count
+                    then if c_file file
+                        then compile_test file commit.Commits.hash
+                        else (0,0,"")
+                    else
+                        let cmd = Printf.sprintf
+                            "git log --oneline %s..v%s -- %s | wc -l"
+                            commit.Commits.hash !target file
+                        in
+                        (int_of_string(List.hd(Tools.cmd_to_list cmd)), 0, "")
+                in
+                (file, ct))
+            files)
+        in
+        let res = (meta, compile_res) in
+        (if !cc_count then preparedir res);
+        [res]
     end
     else []
 
-let process l =
+ let process l =
   let unsome =
     List.fold_left
       (function prev ->
