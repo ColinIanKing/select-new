@@ -268,9 +268,10 @@ let preparedir (meta,files) =
     end
 
 let git_setup version =
-  Tools.check_command "git clean -dfx";
-  Tools.check_command ("git reset --hard "^version);
-  Tools.check_command "make allyesconfig"
+  Tools.check_command "git clean -dfx"; (* Remove untracked files *)
+  Tools.check_command "git reset --hard"; (* Remove uncommited tracked files *)
+  Tools.check_command ("git checkout "^version); (* Set files to version *)
+  if (version != "master") then Tools.check_command "make allyesconfig"
 
 
 let driver_creation_filter commit =
@@ -496,6 +497,7 @@ let _ =
     else Sys.command (Printf.sprintf "mkdir %s" dir) in
 
   Sys.chdir !git;
+  git_setup "master";
 
   Printf.eprintf "Listing commits\n%!";
   let commits =
