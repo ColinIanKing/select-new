@@ -35,12 +35,6 @@ let backport = ref false
 let c_file file = Filename.check_suffix file ".c"
 let h_file file = Filename.check_suffix file ".h"
 
-let check_command s =
-  let dir = Sys.getcwd() in
-  let res =
-    Sys.command (Printf.sprintf "%s > err%s 2>&1" s (Filename.basename dir)) in
-  if not (res = 0)
-  then failwith (Printf.sprintf "failure on %s in %s" s dir)
 
 let read_to_file all ofile =
   let rec loop = function
@@ -274,9 +268,9 @@ let preparedir (meta,files) =
     end
 
 let git_setup version =
-  check_command "git clean -dfx";
-  check_command ("git reset --hard "^version);
-  check_command "make allyesconfig"
+  Tools.check_command "git clean -dfx";
+  Tools.check_command ("git reset --hard "^version);
+  Tools.check_command "make allyesconfig"
 
 
 let driver_creation_filter commit =
