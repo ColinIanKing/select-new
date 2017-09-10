@@ -76,102 +76,119 @@ let run_compile file =
   List.iter (function x -> Printf.eprintf "-> %s\n" x) all;
   let all = read_to_file all ofile in
   let res = List.length (error_warning_note all) in
+  Printf.eprintf "Compiling: %s\nNumber of errors: %d\n%!" file res;
   (res,all)
 
-let compile_test file commit =
-  let resfile =
-    Printf.sprintf "%s/%s/%s_%s" home !key (to_ul file) commit in
-  let res =
-    if Sys.file_exists resfile
-    then 1
-    else
-      let (res,all) = run_compile file in
-      if res > 0
-      then
-	begin
-	  let o = open_out resfile in
-	  List.iter (function x -> Printf.fprintf o "%s\n" x) all;
-	  close_out o;
-	  res
-	end
-      else res in
-  if res > 0
-  then
-    begin
+let call_gcc_reduce res_chan =
+    let buffer = ref [] in
+    Read.read_input_strings "" buffer res_chan;
+    let filtered_output = List.filter (fun x -> not (x = "")) !buffer in
+    (* TODO: legacy code, rewrite with meaningful variable names *)
+    let y = Types.errStructs_of_strings filtered_output in
+    let z = Rules2.process_error_list ([],[]) y y in
+    let z = List.map Generate.chosen_args z in
 
-      (*let cmd =
-	Printf.sprintf "%s/process --sp %s --linux %s/ %s" home home !git
-	  resfile in*)
-      let cmd =
-	Printf.sprintf "%s/../../../gcc-reduce/gcc-reduce %s" home resfile in
-      Printf.eprintf "cmd %s\n" cmd; flush stderr;
-      let reduced = Tools.cmd_to_list cmd in
-      let (chosen_args,reduced) =
-	let (ca,red) =
-	  List.fold_left
-	    (fun (ca,red) l ->
-	      match Str.split_delim (Str.regexp "chosen args: ") l with
-		["";l] -> (l::ca,red)
-	      | [l] -> (ca,l::red)
-	      | _ -> failwith "unexpected chosen args")
-	    ([],[]) reduced in
-	(List.rev ca,List.rev red) in
-      let originalres =
-	int_of_string
-	  (List.hd
-	     (Tools.cmd_to_list
-		(Printf.sprintf "grep -c \": error: \" %s" resfile))) +
-	int_of_string
-	  (List.hd
-	     (Tools.cmd_to_list
-		(Printf.sprintf "grep -c \": warning: \" %s" resfile))) -
-	int_of_string
-	  (List.hd
-	     (Tools.cmd_to_list
-		(Printf.sprintf "grep -c \"(near initialization for \" %s"
-		   resfile))) in
-      let reducedres = List.length (error_warning_note_reduced reduced) in
-      Printf.eprintf "reduced res %d -> %d\n" originalres reducedres;
-      flush stderr;
-      (if reducedres > 0
-      then
-	begin
-	  let resfile =
-	    Printf.sprintf "%s/%s/%s_myreduced_%s" home !key (to_ul file)
-	      commit in
-	  let o = open_out resfile in
-	  List.iter (function x -> Printf.fprintf o "%s\n" x) reduced;
-	  close_out o
-	end);
-      (res,reducedres,String.concat " " chosen_args)
+    let chosen_args = List.map (function err -> err.Types.chosen_args) z in
+    let reduced = List.map (function err ->
+        Str.split (Str.regexp_string "\n") err.Types.msg) z
+    in
+
+    (chosen_args, List.concat reduced)
+
+let compile_test file commit =
+    let resfile =
+        Printf.sprintf "%s/%s/%s_%s" home !key (to_ul file) commit in
+    let res, compiler_output =
+        if Sys.file_exists resfile
+        then
+        (* Dump content of file into list *)
+            let lines = ref [] in
+            let res_chan = open_in resfile in
+            try
+                while true; do
+                    lines := input_line res_chan :: !lines
+                done; (1, List.rev !lines)
+            with End_of_file ->
+                close_in res_chan;
+                (1, List.rev !lines)
+        else
+            let (res, lines) = run_compile file in
+            if res > 0
+                then begin
+                    (* Dump content of compiler output into a resfile *)
+                    let o = open_out resfile in
+                    List.iter (function x -> Printf.fprintf o "%s\n" x) lines;
+                    close_out o;
+                    (res, lines)
+                end
+                else (0, [])
+    in
+    if res > 0
+    then begin
+        let res_chan = open_in resfile in
+        let chosen_args, reduced = call_gcc_reduce res_chan in
+        close_in res_chan;
+        let count pattern =
+            let matching_lines =
+                List.filter (function line ->
+                    Str.string_match (Str.regexp pattern) line 0)
+                compiler_output
+            in
+            List.length matching_lines
+        in
+        let originalres =
+            count ": error: "
+            + count ": warning "
+            - count "(near initialization for "
+        in
+        let reducedres = List.length (error_warning_note_reduced reduced) in
+        Printf.eprintf "reduced res %d -> %d\n" originalres reducedres;
+        flush stderr;
+        if reducedres > 0
+            then begin
+                let resfile =
+                    Printf.sprintf "%s/%s/%s_myreduced_%s" home !key (to_ul file)
+                    commit
+                in
+                let o = open_out resfile in
+                List.iter (function x -> Printf.fprintf o "%s\n" x) reduced;
+                close_out o
+            end;
+            (res,reducedres,String.concat " " chosen_args)
     end
-  else (0,0,"")
+        else (0,0,"")
 
 (* put all files in the _files directory, even the ones without errors, for
 reference in the message reduction process *)
-let pre_preparedir (meta,files) =
-  let (commit,dir,resdir) =
-    match Str.split (Str.regexp ":") meta with
-      commit::date::_ ->
-	(commit,Printf.sprintf "%s/%s_files/%s:%s" home !key commit date,
-	 Printf.sprintf "%s/%s_results/%s:%s" home !key commit date)
-    | _ -> failwith "bad metadata" in
-  (if not (Sys.file_exists dir)
-  then
+let pre_preparedir commit =
+    let dir, resdir =
+        let open Commits in
+        let dir_name = Printf.sprintf "%s:%s" commit.hash commit.meta.date in
+        (
+            Printf.sprintf "%s/%s_files/%s" home !key dir_name,
+            Printf.sprintf "%s/%s_results/%s" home !key dir_name
+        )
+    in
+    (if not (Sys.file_exists dir) then
     begin
-      let chfiles =
-	List.filter (function file -> c_file file || h_file file) files in
-      let _ = Sys.command ("mkdir -p "^dir) in
+        let rec extract_chfiles prev = function
+        | [] -> prev
+        | {Commits.file_name=file; _}::tail
+            when (c_file file || h_file file) -> extract_chfiles (file::prev) tail
+        | head::tail -> extract_chfiles prev tail
+        in
+        let chfiles = extract_chfiles [] commit.Commits.files in
+
+        let _ = Sys.command ("mkdir -p "^dir) in
       (* copy the files into the current directory *)
       List.iter
 	(function file ->
 	  ignore
 	    (Sys.command
 	      (Printf.sprintf "git show %s:%s > %s/%s"
-		 (if !backport then ("v" ^ !target) else commit)
-		 file dir (to_ul file))))
-	chfiles
-    end);
+		 (if !backport then ("v" ^ !target) else commit.Commits.hash)
+		 file dir (to_ul file)))) chfiles
+	end);
   (if not (Sys.file_exists resdir)
   then
     let _ = Sys.command ("mkdir -p "^resdir) in
@@ -388,7 +405,7 @@ let compile commit =
                     ignore (Sys.command
                     (Printf.sprintf "git show %s:%s > %s" com file file))
             ) files;
-        pre_preparedir (meta,files);
+        pre_preparedir commit;
         true
         end
         else false
