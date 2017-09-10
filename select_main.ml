@@ -13,8 +13,6 @@ Makefile, Kconfig, and Kbuild should only contain additions
 
 There are no constraints on other files. *)
 
-type commit = Commits.commit
-
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
@@ -415,7 +413,6 @@ let compile commit =
 
     if ok then
     begin
-        (*let res = (meta, (List.map *)
         let compile_res =
             (List.map (function file ->
                 let ct =
