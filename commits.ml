@@ -52,7 +52,7 @@ let list_by_files files =
 let list_by_hash_list hashes =
     (* Reformat the hashes to short hash format *)
     let git_command =
-        "git show --pretty=format:\"%h:%cd:%an\" -s " ^ (String.concat " " hashes)
+        "git show --date=short --pretty=format:\"%h:%cd:%an\" -s " ^ (String.concat " " hashes)
     in
     list_by git_command
 
