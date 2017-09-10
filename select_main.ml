@@ -135,9 +135,9 @@ let compile_test file commit =
             List.length matching_lines
         in
         let originalres =
-            count ": error: "
-            + count ": warning "
-            - count "(near initialization for "
+            count ".*: error: "
+            + count ".*: warning: "
+            - count ".*(near initialization for "
         in
         let reducedres = List.length (error_warning_note_reduced reduced) in
         Printf.eprintf "reduced res %d -> %d\n" originalres reducedres;
@@ -152,7 +152,7 @@ let compile_test file commit =
                 List.iter (function x -> Printf.fprintf o "%s\n" x) reduced;
                 close_out o
             end;
-            (res,reducedres,String.concat " " chosen_args)
+            (res, reducedres, String.concat " " chosen_args)
     end
         else (0,0,"")
 
@@ -414,7 +414,7 @@ let compile commit =
     if ok then
     begin
         let compile_res =
-            (List.map (function file ->
+            List.map (function file ->
                 let ct =
                     if !cc_count
                     then if c_file file
@@ -428,7 +428,7 @@ let compile commit =
                         (int_of_string(List.hd(Tools.cmd_to_list cmd)), 0, "")
                 in
                 (file, ct))
-            files)
+            files
         in
         let res = (meta, compile_res) in
         (if !cc_count then preparedir res);
