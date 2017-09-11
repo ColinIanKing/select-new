@@ -26,8 +26,6 @@ let list = ref []
 let key = ref "2015"
 let requirement = ref ["drivers/"]
 let antirequirement = ref ["drivers/staging/"]
-let avg = ref false
-let cc_count = ref false
 let backport = ref false
 
 let c_file file = Filename.check_suffix file ".c"
@@ -375,7 +373,7 @@ let compile commit =
         (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author)
     in
 
-    let ok = ok && if !cc_count then
+    if ok then
     begin
         (* Check compilation in the old version
          * No compilation errors must be present *)
@@ -404,38 +402,24 @@ let compile commit =
                     ignore (Sys.command
                     (Printf.sprintf "git show %s:%s > %s" com file file))
             ) files;
-        pre_preparedir commit;
-        true
-        end
-        else false
-    end else true
-    in
+            pre_preparedir commit;
 
+            let compile_res =
+                List.map (function file ->
+                    let ct =
+                        if c_file file
+                            then compile_test file commit.Commits.hash
+                            else (0,0,"")
+                    in
+                    (file, ct))
+                files
+            in
+            let res = (meta, compile_res) in
+            preparedir res;
+            [res]
+        end else []
+    end else []
 
-    if ok then
-    begin
-        let compile_res =
-            List.map (function file ->
-                let ct =
-                    if !cc_count
-                    then if c_file file
-                        then compile_test file commit.Commits.hash
-                        else (0,0,"")
-                    else
-                        let cmd = Printf.sprintf
-                            "git log --oneline %s..v%s -- %s | wc -l"
-                            commit.Commits.hash !target file
-                        in
-                        (int_of_string(List.hd(Tools.cmd_to_list cmd)), 0, "")
-                in
-                (file, ct))
-            files
-        in
-        let res = (meta, compile_res) in
-        (if !cc_count then preparedir res);
-        [res]
-    end
-    else []
 
  let process l =
   let unsome =
@@ -450,9 +434,7 @@ let compile commit =
 		then (ct + prev_orig,ctreduced + prev_reduced,cs+1)
 		else (prev_orig,prev_reduced,cs))
 	      (0,0,0) info in
-	  ((if !avg then (tot/cs) else tot),
-	   (if !avg then (totreduced/cs) else totreduced),
-	   meta,info) :: prev)
+	  (tot, totreduced, meta, info) :: prev)
       [] l in
   let l = List.rev (List.sort compare unsome) in
   List.iter
@@ -485,8 +467,6 @@ let options =
     "--key", Arg.Set_string key, "subdir for results";
     "--subsystem", Arg.String (fun x -> requirement := [x]),
     "targeted directory";
-    "--avg", Arg.Set avg, "order by avg modifs";
-    "--cc-count", Arg.Set cc_count, "order by number of compiler output lines";
     "--cores", Arg.Set_int cores, "number of cores";
     "--git", Arg.Set_string git, "Linux source code";
     "--backport", Arg.Set backport, "backport from dest to src"]

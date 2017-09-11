@@ -1,9 +1,9 @@
-select_drivers: select_main.ml tools.ml commits.ml process gcc-reduce
+select_drivers: select_main.ml tools.ml commits.ml report.ml process gcc-reduce
 	ocamlc -g -o select_drivers \
 	str.cma nums.cma unix.cma bigarray.cma \
 	`ocamlfind query parmap`/parmap.cma \
 	-I `ocamlfind query parmap` \
-	tools.ml commits.ml \
+	tools.ml commits.ml report.ml \
 	-I gcc-reduce/ gcc-reduce/common.cmo gcc-reduce/options.cmo \
 	gcc-reduce/lines.cmo gcc-reduce/types.cmo gcc-reduce/generate.cmo \
 	gcc-reduce/rules2.cmo gcc-reduce/read.cmo \
@@ -12,8 +12,8 @@ select_drivers: select_main.ml tools.ml commits.ml process gcc-reduce
 process: processErrors.ml
 	ocamlopt  -o process unix.cmxa str.cmxa processErrors.ml
 
-report: report.ml
-	ocamlopt -o report str.cmxa report.ml
+report: report.ml report_main.ml
+	ocamlopt -o report str.cmxa report.ml report_main.ml
 
 select_sp: select_sp.ml
 	ocamlopt -o select_sp str.cmxa unix.cmxa select_sp.ml
@@ -82,95 +82,95 @@ threea: select_drivers
 alla: onea twoa threea
 
 onecc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2015" \
+	`pwd`/select_drivers --start "Jan 1, 2015" \
 	--end "Dec 31, 2015" --key 2015c --cores 18 \
 	--git /mnt/ramdisk/linux > rescc2015c
 
 onecc1: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2015" \
+	`pwd`/select_drivers --start "Jan 1, 2015" \
 	--end "Dec 31, 2015" --key 2015c --cores 1 \
 	--git /mnt/ramdisk/linux > rescc2015c
 
 twocc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2014" \
+	`pwd`/select_drivers --start "Jan 1, 2014" \
 	--end "Dec 31, 2014" --key 2014c --cores 18 \
 	--git /mnt/ramdisk/linux > rescc2014c
 
 threecc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2013" \
-	--end "Dec 31, 2013" --key 2013c --cores 18 \
-	--git /mnt/ramdisk/linux > rescc2013c
+	`pwd`/select_drivers --start "Jan 1, 2013" \
+	--end "Dec 31, 2013" --key 2013c --cores 1 \
+	--git /tmp/ram/linux-git > rescc2013c
 
 threecc_redo: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2013" \
+	`pwd`/select_drivers --start "Jan 1, 2013" \
 	--end "Dec 31, 2013" --key 2013c_redo --cores 18 \
 	--git /mnt/ramdisk/linux > rescc2013c_redo
 
 onebc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2015" \
+	`pwd`/select_drivers --start "Jan 1, 2015" \
 	--end "Dec 31, 2015" --key 2015bc --cores 18 --backport \
 	--git /mnt/ramdisk/linux > rescc2015bc
 
 twobc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2014" \
+	`pwd`/select_drivers --start "Jan 1, 2014" \
 	--end "Dec 31, 2014" --key 2014bc --cores 18 --backport \
 	--git /mnt/ramdisk/linux > rescc2014bc
 
 threebc: select_drivers report
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2013" \
+	`pwd`/select_drivers --start "Jan 1, 2013" \
 	--end "Dec 31, 2013" --key 2013bc --cores 18 --backport \
 	--git /mnt/ramdisk/linux > rescc2013bc
 
 threecc1: select_drivers
-	`pwd`/select_drivers --cc-count --start "Jan 1, 2013" \
+	`pwd`/select_drivers --start "Jan 1, 2013" \
 	--end "Dec 31, 2013" --key 2013c --cores 1 --llvm \
 	--git /mnt/ramdisk/linux > rescc2013c
 
 janfeb: select_drivers
-	`pwd`/select_drivers --cc-count  --start "Jan 1, 2013" \
+	`pwd`/select_drivers  --start "Jan 1, 2013" \
 	--end "Feb 28, 2013" \
 	--key janfeb --cores 18 --git /mnt/ramdisk/linux > janfebres
 
 tiny: select_drivers
-	`pwd`/select_drivers --cc-count --range a2871c6^..a2871c6 \
+	`pwd`/select_drivers --range a2871c6^..a2871c6 \
 	--key mytinyc --cores 18 --git /mnt/ramdisk/linux > tinyresc
 
 tinyb: select_drivers
-	`pwd`/select_drivers --cc-count --range 456930d^..456930d --backport \
+	`pwd`/select_drivers --range 456930d^..456930d --backport \
 	--key mytinybc --cores 18 --git /mnt/ramdisk/linux > tinyresbc
 
 
 
 usenix13f: select_drivers
-	`pwd`/select_drivers --cc-count --list e268395,e809c22,217494e,7be56a8,ce77399,09a642b,26780d9,e4fc408,7cbe0ff,62e00cb \
+	`pwd`/select_drivers --list e268395,e809c22,217494e,7be56a8,ce77399,09a642b,26780d9,e4fc408,7cbe0ff,62e00cb \
 	--key usenix13f --cores 18 --git /mnt/ramdisk/linux > usenix13fres
 
 usenix13b: select_drivers
-	`pwd`/select_drivers --cc-count --list e268395,e809c22,217494e,7be56a8,ce77399,09a642b,26780d9,e4fc408,7cbe0ff,62e00cb --backport \
+	`pwd`/select_drivers --list e268395,e809c22,217494e,7be56a8,ce77399,09a642b,26780d9,e4fc408,7cbe0ff,62e00cb --backport \
 	--key usenix13b --cores 18 --git /mnt/ramdisk/linux > usenix13bres
 
 usenix13: usenix13f usenix13b 
 
 usenix15f: select_drivers
-	`pwd`/select_drivers --cc-count \
+	`pwd`/select_drivers \
 	--list 1c14905,744543c,b7da8c5,f031237,ea98b29 \
-	--key usenix15f --cores 1 --git linux-git > usenix15fres
+	--key usenix15f --cores 1 --git /tmp/ram/linux-git > usenix15fres
 
 
 
 usenix13f_more_for_final: select_drivers
-	`pwd`/select_drivers --cc-count --list f1a18a1,41c47d8,8735a81,bf29fbe,8e84c25,1d09aaa,872e79a,da0a00e,6f8da5d,ca3de46 \
+	`pwd`/select_drivers --list f1a18a1,41c47d8,8735a81,bf29fbe,8e84c25,1d09aaa,872e79a,da0a00e,6f8da5d,ca3de46 \
 	--key usenix13f_more_for_final --cores 18 --git /mnt/ramdisk/linux \
 	> usenix13f_more_for_finalres
 
 usenix13b_more_for_final: select_drivers
-	`pwd`/select_drivers --cc-count --list f1a18a1,41c47d8,8735a81,bf29fbe,8e84c25,1d09aaa,872e79a,da0a00e,6f8da5d,ca3de46 --backport \
+	`pwd`/select_drivers --list f1a18a1,41c47d8,8735a81,bf29fbe,8e84c25,1d09aaa,872e79a,da0a00e,6f8da5d,ca3de46 --backport \
 	--key usenix13b_more_for_final --cores 18 --git /mnt/ramdisk/linux \
 	> usenix13b_more_for_finalres
 
 
 usenix15f_more_for_final: select_drivers
-	`pwd`/select_drivers --cc-count --list 1ceacea,c0c050c,44e259a,6234f38,c610afa \
+	`pwd`/select_drivers --list 1ceacea,c0c050c,44e259a,6234f38,c610afa \
 	--key usenix15f_more_for_final --cores 18 --git /mnt/ramdisk/linux > usenix15f_more_for_finalres
 
 
