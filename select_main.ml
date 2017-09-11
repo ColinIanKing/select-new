@@ -81,15 +81,19 @@ let call_gcc_reduce res_chan =
     let filtered_output = List.filter (fun x -> not (x = "")) !buffer in
     (* TODO: legacy code, rewrite with meaningful variable names *)
     let y = Types.errStructs_of_strings filtered_output in
-    let z = Rules2.process_error_list ([],[]) y y in
+    let err = Rules2.process_error_list ([],[]) y y in
+
+    let error_types = List.map Binding.parse_gcc_reduce_err err in
+    (*
     let z = List.map Generate.chosen_args z in
 
     let chosen_args = List.map (function err -> err.Types.chosen_args) z in
+    *)
     let reduced = List.map (function err ->
-        Str.split (Str.regexp_string "\n") err.Types.msg) z
+        Str.split (Str.regexp_string "\n") err.Types.msg) err
     in
 
-    (chosen_args, List.concat reduced)
+    (error_types, List.concat reduced)
 
 let compile_test file commit =
     let resfile =
@@ -122,7 +126,7 @@ let compile_test file commit =
     if res > 0
     then begin
         let res_chan = open_in resfile in
-        let chosen_args, reduced = call_gcc_reduce res_chan in
+        let error_types, reduced = call_gcc_reduce res_chan in
         close_in res_chan;
         let count pattern =
             let matching_lines =
@@ -150,9 +154,9 @@ let compile_test file commit =
                 List.iter (function x -> Printf.fprintf o "%s\n" x) reduced;
                 close_out o
             end;
-            (res, reducedres, String.concat " " chosen_args)
+            (res, reducedres, error_types)
     end
-        else (0,0,"")
+        else (0,0, [])
 
 (* put all files in the _files directory, even the ones without errors, for
 reference in the message reduction process *)
@@ -207,16 +211,16 @@ let preparedir (meta,files) =
     begin
       (* make patch queries *)
       List.iter
-	(function (file,(n,_,chosen_args)) ->
+	(function (file,(n,_,error_types)) ->
 	  if n > 0
 	  then
 	    begin
-	      let cmd =
-		Printf.sprintf "cd %s; %s/report %s %s %s %s"
-		  resdir home (if !backport then "--backport" else "")
-		  file commit chosen_args in
-	      let _ = Sys.command cmd in
-	      ()
+          ignore (Sys.command ("cd " ^ resdir));
+		  let cwd = Sys.getcwd () in
+		  let template_dir = home ^ "/templates" in
+		  let report_options = (!backport, file, commit, error_types) in
+		  Report.do_report ("v" ^ !target) !git template_dir report_options;
+		  ignore (Sys.command ("cd " ^ cwd));
 	    end)
 	files;
       (* make redo infrastructure *)
@@ -409,7 +413,7 @@ let compile commit =
                     let ct =
                         if c_file file
                             then compile_test file commit.Commits.hash
-                            else (0,0,"")
+                            else (0,0,[])
                     in
                     (file, ct))
                 files
@@ -429,7 +433,7 @@ let compile commit =
 	  let (tot,totreduced,cs) =
 	    List.fold_left
 	      (fun (prev_orig,prev_reduced,cs)
-		  (file,(ct,ctreduced,chosen_args)) ->
+		  (file,(ct,ctreduced,_)) ->
 		if c_file file
 		then (ct + prev_orig,ctreduced + prev_reduced,cs+1)
 		else (prev_orig,prev_reduced,cs))
@@ -441,7 +445,7 @@ let compile commit =
     (function (tot,totreduced,meta,info) ->
       Printf.printf "%d -> %d: %s\n" tot totreduced meta;
       List.iter
-	(function (file,(ct,ctreduced,chosen_args)) ->
+	(function (file,(ct,ctreduced, _)) ->
 	  Printf.printf "   %s: %d -> %d\n" file ct ctreduced)
 	info)
     l;
