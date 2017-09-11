@@ -107,14 +107,13 @@ let msg = function
 
 let to_ul s = String.concat "_" (Str.split (Str.regexp "/") s)
 
-let do_report target linux dir args =
+let do_report target linux tdir args =
   let (backport,file,commit,args) = parse_args (false,"","",[]) args in
   (* make the directory *)
   let dir = (to_ul file) ^ "_" ^ commit in
   (if Sys.file_exists dir then failwith (dir^" already exists"));
   let _ = Sys.command ("mkdir "^dir) in
   (* put the semantic patches in the directory *)
-  let tdir = dir^"/templates" in
   let replace k v = Printf.sprintf "sed s/%s/%s/g" k (sedsafe v) in
   let extra1 =
     if backport then "| sed s/^-/%/ | sed s/^+/-/ | sed s/^%/+/ " else "" in
