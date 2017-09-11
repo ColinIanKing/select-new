@@ -364,8 +364,9 @@ let compile commit =
 
     (* Check if files still exist in the target directory *)
     let ok =
+        git_setup ("v" ^ !target);
         List.for_all
-        (function file -> Sys.file_exists (!reference^"/"^file))
+        (function file -> Sys.file_exists file)
         files
     in
 
@@ -497,10 +498,6 @@ let usage = ""
 let _ =
   Arg.parse (Arg.align options) anonymous usage;
 
-  (* Get first directory for target 
-   * TODO: catch exception if locate fails 
-   * Maybe use --limit=1 *)
-  reference := List.hd (Tools.cmd_to_list ("locate /linux-" ^ !target));
   let dir = Printf.sprintf "%s/%s" home !key in
   let _ =
       (* Create a working directory, purge the content if the dir exist
