@@ -1,0 +1,2 @@
+Gcc reports that argument ARG of the function {\tt FN} has the wrong type.
+We try the following patch query (stepNUM.cocci):

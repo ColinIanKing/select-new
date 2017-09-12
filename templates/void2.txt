@@ -1,0 +1,3 @@
+Gcc reports that the type returned by a call to the field {\tt FLD} of a
+{\tt STR} structure is void.  We try the following patch query
+(stepNUM.cocci):

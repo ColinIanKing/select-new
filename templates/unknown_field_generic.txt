@@ -1,0 +1,2 @@
+Gcc reports that the field {\tt FLD} of some structure is
+not known.  We try the following patch query (stepNUM.cocci):

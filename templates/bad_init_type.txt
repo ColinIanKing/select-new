@@ -1,0 +1,4 @@
+Gcc reports that the field {\tt FLD} of the structure
+{\tt struct STR} is
+initialized to a value of the wrong type.  We try the following patch
+query (stepNUM.cocci):

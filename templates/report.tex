@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage{fullpage}
+\usepackage{listings}
+
+\usepackage{color}
+\usepackage[svgnames]{xcolor}
+  \definecolor{diffstart}{named}{Blue}%{Grey}
+  \definecolor{diffincl}{named}{Green}
+  \definecolor{diffrem}{named}{Red}
+
+\usepackage{listings}
+  \lstdefinelanguage{diff}{
+        basicstyle=\ttfamily\small,
+        morecomment=[f][\color{diffstart}]{@},
+        morecomment=[f][\color{diffincl}]{+},
+        morecomment=[f][\color{diffrem}]{-},
+        keepspaces=true,columns=fullflexible,
+        identifierstyle=\color{black},
+  }
+
+\title{Porting of FILE}
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+The driver FILE was introduced in 2013 in the commit
+COMMIT.  It DOES WHAT?   This driver was accompanied by WHAT other files.
+Gcc produces HOW MANY errors/warnings that reduce to HOW MANY errors/warnings.

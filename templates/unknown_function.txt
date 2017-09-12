@@ -1,0 +1,2 @@
+Gcc reports that the function {\tt FN} is not known.  We try
+the following patch query (stepNUM.cocci):

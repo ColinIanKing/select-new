@@ -1,0 +1,3 @@
+Gcc reports that the field {\tt FLD} of the structure
+{\tt struct STR} or the structure {\tt struct STR} itself is
+not known.  We try the following patch query (stepNUM.cocci):
