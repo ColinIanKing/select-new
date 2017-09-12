@@ -352,6 +352,15 @@ let driver_creation_filter commit =
 let keep_added commits =
     List.filter driver_creation_filter commits
 
+let keep_existing commits =
+    git_setup ("v" ^ !target);
+
+    let files_exists files =
+        List.for_all (function file ->
+            Sys.file_exists file.Commits.file_name)
+            files
+    in
+    List.filter (function commit -> files_exists commit.Commits.files) commits
 
 let compile commit =
     let rank = Parmap.get_rank () in
@@ -364,64 +373,53 @@ let compile commit =
         commit.Commits.files
     in
 
-    (* Check if files still exist in the target directory *)
-    let ok =
-        git_setup ("v" ^ !target);
-        List.for_all
-        (function file -> Sys.file_exists file)
-        files
-    in
-
     let meta =
         let open Commits in
         (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author)
     in
 
-    if ok then
+    (* Check compilation in the old version
+     * No compilation errors must be present *)
+    let compile_ok =
+        git_setup commit.Commits.hash;
+        List.for_all (fun file ->
+            not (c_file file) ||
+            (fst(run_compile file)) = 0
+        ) files in
+    if compile_ok then
     begin
-        (* Check compilation in the old version
-         * No compilation errors must be present *)
-        let compile_ok =
-            git_setup commit.Commits.hash;
-            List.for_all (fun file ->
-                not (c_file file) ||
-                (fst(run_compile file)) = 0
-            ) files in
-        if compile_ok then
-        begin
-            let version = if !backport
-                then commit.Commits.hash
-                else ("v" ^ !target)
+        let version = if !backport
+            then commit.Commits.hash
+            else ("v" ^ !target)
+        in
+        git_setup version;
+
+
+        List.iter (function file ->
+            let com = if !backport
+                then ("v" ^ !target)
+                else commit.Commits.hash
             in
-            git_setup version;
+            if c_file file || h_file file then
+                (* Copy driver files into repository *)
+                ignore (Sys.command
+                (Printf.sprintf "git show %s:%s > %s" com file file))
+        ) files;
+        pre_preparedir commit;
 
-
-            List.iter (function file ->
-                let com = if !backport
-                    then ("v" ^ !target)
-                    else commit.Commits.hash
+        let compile_res =
+            List.map (function file ->
+                let ct =
+                    if c_file file
+                        then compile_test file commit.Commits.hash
+                        else (0,0,[])
                 in
-                if c_file file || h_file file then
-                    (* Copy driver files into repository *)
-                    ignore (Sys.command
-                    (Printf.sprintf "git show %s:%s > %s" com file file))
-            ) files;
-            pre_preparedir commit;
-
-            let compile_res =
-                List.map (function file ->
-                    let ct =
-                        if c_file file
-                            then compile_test file commit.Commits.hash
-                            else (0,0,[])
-                    in
-                    (file, ct))
-                files
-            in
-            let res = (meta, compile_res) in
-            preparedir res;
-            [res]
-        end else []
+                (file, ct))
+            files
+        in
+        let res = (meta, compile_res) in
+        preparedir res;
+        [res]
     end else []
 
 
@@ -513,9 +511,14 @@ let _ =
     (* Filter commits to keep only those which add a driver *)
     let driver_add = keep_added parsed in
     Printf.eprintf "%d commits are adding a driver\n%!"
-    (List.length driver_add);
+        (List.length driver_add);
+
+    (* Filter commits to keep only those which files still exist *)
+    let driver_exist = keep_existing driver_add in
+    Printf.eprintf "%d commits have intact files in %s \n%!"
+        (List.length driver_add) ("v" ^ !target);
 
     (* Test compilation and apply gcc-reduce *)
     Printf.eprintf "Checking compilation in introduction commit version\n%!";
-    let res = Parmap.parmap compile (Parmap.L(driver_add)) ~ncores:(!cores) in
+    let res = Parmap.parmap compile (Parmap.L(driver_exist)) ~ncores:(!cores) in
     process (List.concat res)
