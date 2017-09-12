@@ -1,7 +1,7 @@
 let target = ref "v4.6"
 let linux = "/run/shm/linux"
 
-let rec parse_args (bp,file,commit,args) = function
+let rec parse_args (bp,file,commit,args) = let open Report in function
     [] -> (bp,file,commit,List.rev args)
   | "--backport"::rest -> parse_args (true,file,commit,args) rest
   | "--unknown"::rest ->
