@@ -480,36 +480,42 @@ let anonymous s = failwith "no anonymous arguments"
 let usage = ""
 
 let _ =
-  Arg.parse (Arg.align options) anonymous usage;
+    Arg.parse (Arg.align options) anonymous usage;
 
-  let dir = Printf.sprintf "%s/%s" home !key in
-  let _ =
-      (* Create a working directory, purge the content if the dir exist
-       * TODO: check that dir is a directory
-       * Remove error message if dir already empty *)
+    let dir = Printf.sprintf "%s/%s" home !key in
+    let _ =
+        (* Create a working directory, purge the content if the dir exist
+        * TODO: check that dir is a directory
+        * Remove error message if dir already empty *)
     if Sys.file_exists dir
     then Sys.command (Printf.sprintf "/bin/rm %s/*" dir)
     else Sys.command (Printf.sprintf "mkdir %s" dir) in
 
-  Sys.chdir !git;
-  git_setup "master";
+    (* Clean the git repository *)
+    Sys.chdir !git;
+    git_setup "master";
 
-  Printf.eprintf "Listing commits\n%!";
-  let commits =
+    (* Fetch commit hash based on program arguments *)
+    Printf.eprintf "Listing commits\n%!";
+    let commits =
       if not (!list = [])
       then Commits.list_by_hash_list !list
       else if not (!range = "")
       then Commits.list_by_range !range
       else Commits.list_by_dates !start_time !end_time
-  in
-  Printf.eprintf "Found %d commits\n%!" (List.length commits);
+    in
+    Printf.eprintf "Found %d commits\n%!" (List.length commits);
 
-  let parsed = Commits.parse_commits commits in
-  Printf.eprintf "Filtering commits\n%!";
-  let driver_add = keep_added parsed in
-  Printf.eprintf "%d commits are adding a driver\n%!"
+    (* Transform commits hashes into structure with files and metadata *)
+    let parsed = Commits.parse_commits commits in
+    Printf.eprintf "Filtering commits\n%!";
+
+    (* Filter commits to keep only those which add a driver *)
+    let driver_add = keep_added parsed in
+    Printf.eprintf "%d commits are adding a driver\n%!"
     (List.length driver_add);
 
-  Printf.eprintf "Checking compilation in introduction commit version\n%!";
-  let res = Parmap.parmap compile (Parmap.L(driver_add)) ~ncores:(!cores) in
-  process (List.concat res)
+    (* Test compilation and apply gcc-reduce *)
+    Printf.eprintf "Checking compilation in introduction commit version\n%!";
+    let res = Parmap.parmap compile (Parmap.L(driver_add)) ~ncores:(!cores) in
+    process (List.concat res)
