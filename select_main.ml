@@ -215,12 +215,12 @@ let preparedir (meta,files) =
 	  if n > 0
 	  then
 	    begin
-          ignore (Sys.command ("cd " ^ resdir));
 		  let cwd = Sys.getcwd () in
 		  let template_dir = home ^ "/templates" in
 		  let report_options = (!backport, file, commit, error_types) in
+          Sys.chdir resdir;
 		  Report.do_report ("v" ^ !target) !git template_dir report_options;
-		  ignore (Sys.command ("cd " ^ cwd));
+		  Sys.chdir cwd;
 	    end)
 	files;
       (* make redo infrastructure *)
