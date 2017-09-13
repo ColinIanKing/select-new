@@ -1,3 +1,5 @@
+exception ProcessError of Unix.process_status * (string list)
+
 let cmd_to_list command =
     (* Open process and retrieve stdout output as list*)
     let chan = Unix.open_process_in command in
@@ -5,14 +7,17 @@ let cmd_to_list command =
 
     (* Concatenate output lines into list *)
     let rec process_otl_aux () =
-    let e = input_line chan in
-    res := e::!res;
-    process_otl_aux() in
+        let e = input_line chan in
+        res := e::!res;
+        process_otl_aux()
+    in
 
     try process_otl_aux ()
     with End_of_file ->
-        ignore (Unix.close_process_in chan);
-        List.rev !res
+        let status = Unix.close_process_in chan in
+        match status with
+        | Unix.WEXITED(0) -> List.rev !res
+        | _ -> raise (ProcessError(status, List.rev !res))
 
 
 let is_file_in_paths file paths =

@@ -27,6 +27,7 @@ let key = ref "2015"
 let requirement = ref ["drivers/"]
 let antirequirement = ref ["drivers/staging/"]
 let backport = ref false
+let debug = ref false
 
 let c_file file = Filename.check_suffix file ".c"
 let h_file file = Filename.check_suffix file ".h"
@@ -64,16 +65,26 @@ let error_warning_note_reduced all = error_warning_note all (*
 
 let to_ul s = String.concat "_" (Str.split (Str.regexp "/") s)
 
+let debug_output output =
+    if !debug
+        then List.iter (function x -> Printf.eprintf "DEBUG: %s\n%!" x) output;
+    output
+
+
 let run_compile file =
-    (* Try compiling file and display make output to stderr 
-     * Returns (number_of_errors, first lines of error on file) *)
-  let ofile = (Filename.chop_extension file) ^ ".o" in
-  let all = Tools.cmd_to_list (Printf.sprintf "make %s 2>&1" ofile) in
-  List.iter (function x -> Printf.eprintf "-> %s\n" x) all;
-  let all = read_to_file all ofile in
-  let res = List.length (error_warning_note all) in
-  Printf.eprintf "Compiling: %s\nNumber of errors: %d\n%!" file res;
-  (res,all)
+    (* Try to compile file and get make output*)
+    let ofile = (Filename.chop_extension file) ^ ".o" in
+    Tools.cmd_to_list (Printf.sprintf "make %s 2>&1" ofile)
+
+
+let filter_file_errors file make_output =
+    (* Filter to keep only errors or warnings of file *)
+    let ofile = (Filename.chop_extension file) ^ ".o" in
+    let filtered_errors = read_to_file make_output ofile in
+    let count = List.length (error_warning_note filtered_errors) in
+    (count, filtered_errors)
+
+
 
 let call_gcc_reduce res_chan =
     let buffer = ref [] in
@@ -112,7 +123,13 @@ let compile_test file commit =
                 close_in res_chan;
                 (1, List.rev !lines)
         else
-            let (res, lines) = run_compile file in
+            let output =
+                try
+                    run_compile file
+                with Tools.ProcessError(Unix.WEXITED(_), output) ->
+                    output
+            in
+            let (res, lines) = filter_file_errors file (debug_output output) in
             if res > 0
                 then begin
                     (* Dump content of compiler output into a resfile *)
@@ -348,9 +365,9 @@ let driver_creation_filter commit =
     ) commit.Commits.files
 
 
-
 let keep_added commits =
     List.filter driver_creation_filter commits
+
 
 let keep_existing commits =
     git_setup ("v" ^ !target);
@@ -361,6 +378,42 @@ let keep_existing commits =
             files
     in
     List.filter (function commit -> files_exists commit.Commits.files) commits
+
+
+let keep_compiling commit =
+    let try_compile commit =
+        let rank = Parmap.get_rank () in
+        (if ((Parmap.get_ncores ()) != 1)
+            then Sys.chdir (giti rank)
+        );
+
+        git_setup commit.Commits.hash;
+
+        try
+            let is_compiling = List.for_all (fun file ->
+                if c_file file.Commits.file_name
+                    then
+                    let output =
+                        debug_output (run_compile file.Commits.file_name)
+                    in
+                    fst(filter_file_errors file.Commits.file_name output) = 0
+
+                    else true
+            ) commit.Commits.files
+            in
+            if is_compiling
+                then [commit]
+                else []
+        with Tools.ProcessError(Unix.WEXITED(_), output) ->
+            ignore(debug_output output);
+            []
+
+    in
+    let res = Parmap.parmap try_compile (Parmap.L(commit)) ~ncores:(!cores) in
+    List.concat res
+
+
+
 
 let compile commit =
     let rank = Parmap.get_rank () in
@@ -378,49 +431,37 @@ let compile commit =
         (commit.hash ^ ":" ^ commit.meta.date ^ ":" ^ commit.meta.author)
     in
 
-    (* Check compilation in the old version
-     * No compilation errors must be present *)
-    let compile_ok =
-        git_setup commit.Commits.hash;
-        List.for_all (fun file ->
-            not (c_file file) ||
-            (fst(run_compile file)) = 0
-        ) files in
-    if compile_ok then
-    begin
-        let version = if !backport
-            then commit.Commits.hash
-            else ("v" ^ !target)
+    let version = if !backport
+        then commit.Commits.hash
+        else ("v" ^ !target)
+    in
+    git_setup version;
+
+    List.iter (function file ->
+        let com = if !backport
+            then ("v" ^ !target)
+            else commit.Commits.hash
         in
-        git_setup version;
+        if c_file file || h_file file then
+            (* Copy driver files into repository *)
+            ignore (Sys.command
+            (Printf.sprintf "git show %s:%s > %s" com file file))
+    ) files;
+    pre_preparedir commit;
 
-
-        List.iter (function file ->
-            let com = if !backport
-                then ("v" ^ !target)
-                else commit.Commits.hash
+    let compile_res =
+        List.map (function file ->
+            let ct =
+                if c_file file
+                    then compile_test file commit.Commits.hash
+                    else (0,0,[])
             in
-            if c_file file || h_file file then
-                (* Copy driver files into repository *)
-                ignore (Sys.command
-                (Printf.sprintf "git show %s:%s > %s" com file file))
-        ) files;
-        pre_preparedir commit;
-
-        let compile_res =
-            List.map (function file ->
-                let ct =
-                    if c_file file
-                        then compile_test file commit.Commits.hash
-                        else (0,0,[])
-                in
-                (file, ct))
-            files
-        in
-        let res = (meta, compile_res) in
-        preparedir res;
-        [res]
-    end else []
+            (file, ct))
+        files
+    in
+    let res = (meta, compile_res) in
+    preparedir res;
+    res
 
 
  let process l =
@@ -471,6 +512,7 @@ let options =
     "targeted directory";
     "--cores", Arg.Set_int cores, "number of cores";
     "--git", Arg.Set_string git, "Linux source code";
+    "--debug", Arg.Set debug, "Print debug informations";
     "--backport", Arg.Set backport, "backport from dest to src"]
 
 let anonymous s = failwith "no anonymous arguments"
@@ -515,10 +557,14 @@ let _ =
 
     (* Filter commits to keep only those which files still exist *)
     let driver_exist = keep_existing driver_add in
-    Printf.eprintf "%d commits have intact files in %s \n%!"
+    Printf.eprintf "%d commits still have the same files in %s \n%!"
         (List.length driver_add) ("v" ^ !target);
 
-    (* Test compilation and apply gcc-reduce *)
     Printf.eprintf "Checking compilation in introduction commit version\n%!";
-    let res = Parmap.parmap compile (Parmap.L(driver_exist)) ~ncores:(!cores) in
-    process (List.concat res)
+    let driver_compile = keep_compiling driver_exist in
+    Printf.eprintf "%d/%d drivers compile in their original version\n%!"
+        (List.length driver_compile) (List.length driver_add);
+
+    (* Test compilation and apply gcc-reduce *)
+    let res = Parmap.parmap compile (Parmap.L(driver_compile)) ~ncores:(!cores) in
+    process res
