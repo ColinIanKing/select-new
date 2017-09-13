@@ -380,14 +380,17 @@ let keep_existing commits =
     List.filter (function commit -> files_exists commit.Commits.files) commits
 
 
-let keep_compiling commit =
-    let try_compile commit =
+let keep_compiling commits =
+    let try_compile total i commit =
         let rank = Parmap.get_rank () in
         (if ((Parmap.get_ncores ()) != 1)
             then Sys.chdir (giti rank)
         );
 
         git_setup commit.Commits.hash;
+
+        if rank = 0
+            then Tools.print_progress total i;
 
         try
             let is_compiling = List.for_all (fun file ->
@@ -409,17 +412,25 @@ let keep_compiling commit =
             []
 
     in
-    let res = Parmap.parmap try_compile (Parmap.L(commit)) ~ncores:(!cores) in
+    let total = List.length commits in
+    let res =
+        Parmap.parmapi (try_compile total) (Parmap.L(commits)) ~ncores:(!cores)
+    in
+
+    Printf.eprintf "\n%!";
     List.concat res
 
 
 
 
-let compile commit =
+let compile total i commit =
     let rank = Parmap.get_rank () in
     (if ((Parmap.get_ncores ()) != 1)
         then Sys.chdir (giti rank)
     );
+
+    if rank = 0
+        then Tools.print_progress total i;
 
     (* Extract file name of files still existing in the commit *)
     let files = List.map (function a -> a.Commits.file_name)
@@ -566,5 +577,9 @@ let _ =
         (List.length driver_compile) (List.length driver_add);
 
     (* Test compilation and apply gcc-reduce *)
-    let res = Parmap.parmap compile (Parmap.L(driver_compile)) ~ncores:(!cores) in
+    let res =
+        Parmap.parmapi (compile (List.length driver_compile))
+            (Parmap.L(driver_compile)) ~ncores:(!cores)
+    in
+    Printf.eprintf "\n%!";
     process res

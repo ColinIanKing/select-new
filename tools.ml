@@ -34,4 +34,21 @@ let check_command s =
     if not (res = 0)
         then failwith (Printf.sprintf "failure on %s in %s" s dir)
 
-;;
+
+let print_progress total index =
+    let max_index = total / (Parmap.get_ncores ()) in
+    let rank = Parmap.get_rank () in
+    let index =
+        if rank = -1
+            then (index*50)/max_index
+            else 50 - (index*50/max_index)
+    in
+    let get_char = function
+    | i when (i = index) -> '>'
+    | i when (i < index) -> '='
+    | _ -> ' '
+    in
+
+    let to_print = "[" ^ (String.init 50 get_char) ^ "]" in
+
+    Printf.eprintf "\r%s%!" to_print
