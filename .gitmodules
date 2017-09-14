@@ -1,0 +1,6 @@
+[submodule "gcc-reduce"]
+	path = gcc-reduce
+	url = git+ssh://lserrano@scm.gforge.inria.fr/gitroot/prequel/gcc-reduce.git
+[submodule "parmap"]
+	path = parmap
+	url = https://github.com/rdicosmo/parmap.git
