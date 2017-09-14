@@ -1,12 +1,12 @@
 select_drivers: select_main.ml tools.ml commits.ml report.ml binding.ml process gcc-reduce
-	ocamlc -g -o select_drivers \
-	str.cma nums.cma unix.cma bigarray.cma \
-	parmap/_build/parmap.cma \
-	-I parmap/_build/ \
+	ocamlopt -g -o select_drivers \
+	str.cmxa nums.cmxa unix.cmxa bigarray.cmxa \
+	parmap/_build/parmap.cmxa \
+	-I parmap/_build \
 	tools.ml commits.ml report.ml \
-	-I gcc-reduce/ gcc-reduce/common.cmo gcc-reduce/options.cmo \
-	gcc-reduce/lines.cmo gcc-reduce/types.cmo gcc-reduce/generate.cmo \
-	gcc-reduce/rules2.cmo gcc-reduce/read.cmo \
+	-I gcc-reduce/ gcc-reduce/common.cmx gcc-reduce/options.cmx \
+	gcc-reduce/lines.cmx gcc-reduce/types.cmx gcc-reduce/generate.cmx \
+	gcc-reduce/rules2.cmx gcc-reduce/read.cmx \
 	binding.ml select_main.ml
 
 process: processErrors.ml
