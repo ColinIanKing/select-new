@@ -17,7 +17,6 @@ let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
 let target = ref "4.6"
-let reference = ref ""
 let cores = ref 22
 let start_time = ref "Jan 1, 2015"
 let end_time = ref "Dec 31, 2015"
