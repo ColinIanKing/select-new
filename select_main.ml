@@ -34,6 +34,13 @@ let make_absolute path =
         then home ^ "/" ^ path
         else path
 
+let get_dirs working_dir =
+    (* Returns subdirectories use by the application *)
+    let tmp_dir = working_dir ^ "/tmp" in
+    let files_dir = working_dir ^ "/files" in
+    let results_dir = working_dir ^ "/results" in
+    (tmp_dir, files_dir, results_dir)
+
 let read_to_file all ofile =
   let rec loop = function
       [] -> []
@@ -108,8 +115,9 @@ let call_gcc_reduce res_chan =
     (error_types, List.concat reduced)
 
 let compile_test file commit =
+    let tmp_dir, _, _ = get_dirs !work_dir in
     let resfile =
-        Printf.sprintf "%s/%s_%s" !work_dir (to_ul file) commit in
+        Printf.sprintf "%s/%s_%s" tmp_dir (to_ul file) commit in
     let res, compiler_output =
         if Sys.file_exists resfile
         then
@@ -165,7 +173,7 @@ let compile_test file commit =
         if reducedres > 0
             then begin
                 let resfile =
-                    Printf.sprintf "%s/%s_myreduced_%s" !work_dir (to_ul file)
+                    Printf.sprintf "%s/%s_myreduced_%s" tmp_dir (to_ul file)
                     commit
                 in
                 let o = open_out resfile in
@@ -181,10 +189,11 @@ reference in the message reduction process *)
 let pre_preparedir commit =
     let dir, resdir =
         let open Commits in
+        let _, files_dir, results_dir = get_dirs !work_dir in
         let dir_name = Printf.sprintf "%s:%s" commit.hash commit.meta.date in
         (
-            Printf.sprintf "%s_files/%s" !work_dir dir_name,
-            Printf.sprintf "%s_results/%s" !work_dir dir_name
+            files_dir ^ "/" ^ dir_name,
+            results_dir ^ "/" ^ dir_name
         )
     in
     (if not (Sys.file_exists dir) then
@@ -197,7 +206,7 @@ let pre_preparedir commit =
         in
         let chfiles = extract_chfiles [] commit.Commits.files in
 
-        let _ = Sys.command ("mkdir -p "^dir) in
+        Tools.create_dir dir false;
       (* copy the files into the current directory *)
       List.iter
 	(function file ->
@@ -207,24 +216,19 @@ let pre_preparedir commit =
 		 (if !backport then ("v" ^ !target) else commit.Commits.hash)
 		 file dir (to_ul file)))) chfiles
 	end);
-  (if not (Sys.file_exists resdir)
-  then
-    let _ = Sys.command ("mkdir -p "^resdir) in
-    ()
-  else
-    let _ = Sys.command ("/bin/rm -rf "^resdir^"/*") in
-    ())
+    Tools.create_dir resdir false
 
 let preparedir (meta,files) =
   let (commit,dir,resdir) =
+    let _, files_dir, results_dir = get_dirs !work_dir in
     match Str.split (Str.regexp ":") meta with
       commit::date::_ ->
-	(commit,Printf.sprintf "%s_files/%s:%s" !work_dir commit date,
-	 Printf.sprintf "%s_results/%s:%s" !work_dir commit date)
+	(commit,Printf.sprintf "%s/%s:%s" files_dir commit date,
+	 Printf.sprintf "%s/%s:%s" results_dir commit date)
     | _ -> failwith "bad metadata" in
   let count = List.fold_left (fun prev (_,(n,_,_)) -> prev + n) 0 files in
   if count = 0
-  then let _ = Sys.command ("/bin/rm -rf "^resdir) in ()
+  then let _ = Sys.command ("/bin/rm -rf " ^ resdir) in ()
   else
     begin
       (* make patch queries *)
@@ -420,12 +424,13 @@ let compile total i commit =
 	  Printf.printf "   %s: %d -> %d\n" file ct ctreduced)
 	info)
     l;
+  let _, _, results_dir = get_dirs !work_dir in
   let data =
     Tools.cmd_to_list
-      (Printf.sprintf "cd %s_results; find . -name Makefile" !work_dir) in
+      (Printf.sprintf "cd %s; find . -name Makefile" results_dir) in
   let data =
     List.map (fun x -> List.hd (Str.split (Str.regexp "/Makefile") x)) data in
-  let o = open_out (Printf.sprintf "%s_results/runall" !work_dir) in
+  let o = open_out (Printf.sprintf "%s/runall" results_dir) in
   List.iter (function dir -> Printf.fprintf o "cd %s ; make -j15 all ; cd ../..\n" dir)
     data;
   close_out o
@@ -458,6 +463,10 @@ let _ =
     work_dir := make_absolute !work_dir;
 
     Tools.create_dir !work_dir true;
+    let tmp_dir, files_dir, results_dir = get_dirs !work_dir in
+    Tools.create_dir tmp_dir true;
+    Tools.create_dir files_dir false;
+    Tools.create_dir results_dir true;
 
     (* Clean the git repository *)
     Sys.chdir !git;
