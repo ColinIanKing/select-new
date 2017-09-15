@@ -457,16 +457,7 @@ let _ =
     git := make_absolute !git;
     work_dir := make_absolute !work_dir;
 
-    let () =
-        (* Create a working directory *)
-        if Sys.file_exists !work_dir
-            then if Sys.is_directory !work_dir
-                then ()
-                else failwith(!work_dir ^ " is a regular file")
-            else if (Sys.command (Printf.sprintf "mkdir -p %s" !work_dir) = 0)
-                then ()
-                else failwith("Error creating directory " ^ !work_dir)
-    in
+    Tools.create_dir !work_dir true;
 
     (* Clean the git repository *)
     Sys.chdir !git;
