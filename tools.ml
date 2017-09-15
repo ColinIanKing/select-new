@@ -52,3 +52,11 @@ let print_progress total index =
     let to_print = "[" ^ (String.init 50 get_char) ^ "]" in
 
     Printf.eprintf "\r%s%!" to_print
+
+
+let git_setup version =
+  (* Clean the current git repository and checkout to `version` *)
+  check_command "git clean -dfx"; (* Remove untracked files *)
+  check_command "git reset --hard"; (* Remove uncommited tracked files *)
+  check_command ("git checkout "^version); (* Set files to version *)
+  if (version != "master") then check_command "make allyesconfig"

@@ -301,12 +301,6 @@ let preparedir (meta,files) =
       close_out o
     end
 
-let git_setup version =
-  Tools.check_command "git clean -dfx"; (* Remove untracked files *)
-  Tools.check_command "git reset --hard"; (* Remove uncommited tracked files *)
-  Tools.check_command ("git checkout "^version); (* Set files to version *)
-  if (version != "master") then Tools.check_command "make allyesconfig"
-
 
 let driver_creation_filter commit =
     (* Checks if the commit introduce a new driver
@@ -370,7 +364,7 @@ let keep_added commits =
 
 
 let keep_existing commits =
-    git_setup ("v" ^ !target);
+    Tools.git_setup ("v" ^ !target);
 
     let files_exists files =
         List.for_all (function file ->
@@ -387,7 +381,7 @@ let keep_compiling commits =
             then Sys.chdir (giti rank)
         );
 
-        git_setup commit.Commits.hash;
+        Tools.git_setup commit.Commits.hash;
 
         if rank = 0
             then Tools.print_progress total i;
@@ -446,7 +440,7 @@ let compile total i commit =
         then commit.Commits.hash
         else ("v" ^ !target)
     in
-    git_setup version;
+    Tools.git_setup version;
 
     List.iter (function file ->
         let com = if !backport
@@ -544,7 +538,7 @@ let _ =
 
     (* Clean the git repository *)
     Sys.chdir !git;
-    git_setup "master";
+    Tools.git_setup "master";
 
     (* Fetch commit hash based on program arguments *)
     Printf.eprintf "Listing commits\n%!";
