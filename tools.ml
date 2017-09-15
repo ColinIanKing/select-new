@@ -64,3 +64,18 @@ let git_setup version =
 
 let is_c_file file = Filename.check_suffix file ".c"
 let is_h_file file = Filename.check_suffix file ".h"
+
+
+let create_dir dir clean =
+    (* Create directory dir if non-existent.
+     * Clean it if requested *)
+    if Sys.file_exists dir
+        then if not (Sys.is_directory dir)
+            then failwith(dir ^ " is a regular file")
+            else if (clean && (Array.length (Sys.readdir dir)) != 0)
+                then if (Sys.command (Printf.sprintf "rm -rf %s/*" dir)) != 0
+                    then failwith("Error cleaning directory " ^ dir)
+                    else ()
+                else ()
+        else if (Sys.command (Printf.sprintf "mkdir -p %s" dir) != 0)
+            then failwith("Error creating directory " ^ dir)
