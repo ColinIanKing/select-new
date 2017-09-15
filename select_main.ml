@@ -29,9 +29,6 @@ let antirequirement = ref ["drivers/staging/"]
 let backport = ref false
 let debug = ref false
 
-let c_file file = Filename.check_suffix file ".c"
-let h_file file = Filename.check_suffix file ".h"
-
 
 let read_to_file all ofile =
   let rec loop = function
@@ -191,7 +188,7 @@ let pre_preparedir commit =
         let rec extract_chfiles prev = function
         | [] -> prev
         | {Commits.file_name=file; _}::tail
-            when (c_file file || h_file file) -> extract_chfiles (file::prev) tail
+            when (Tools.is_c_file file || Tools.is_h_file file) -> extract_chfiles (file::prev) tail
         | head::tail -> extract_chfiles prev tail
         in
         let chfiles = extract_chfiles [] commit.Commits.files in
@@ -242,10 +239,10 @@ let preparedir (meta,files) =
 	files;
       (* make redo infrastructure *)
       let chfiles =
-	List.filter (function file -> c_file file || h_file file)
+	List.filter (function file -> Tools.is_c_file file || Tools.is_h_file file)
 	  (List.map fst files) in
-      let cfiles = List.filter c_file chfiles in
-      let hfiles = List.filter h_file chfiles in
+      let cfiles = List.filter Tools.is_c_file chfiles in
+      let hfiles = List.filter Tools.is_h_file chfiles in
       (* make the makefile *)
       let makefile = Printf.sprintf "%s/Makefile" dir in
       let o = open_out makefile in
@@ -302,78 +299,6 @@ let preparedir (meta,files) =
     end
 
 
-let driver_creation_filter commit =
-    (* Checks if the commit introduce a new driver
-     * Implementation of conditions precised at the start of this file
-     *)
-    List.exists
-    ( function a -> match a with
-    | {Commits.file_name=file_name;
-       Commits.modification=Commits.Created}
-        when (
-            c_file file_name &&
-            Tools.is_file_in_paths file_name !requirement &&
-            not (Tools.is_file_in_paths file_name !antirequirement)
-        ) -> true
-    | _ -> false
-    ) commit.Commits.files &&
-
-    List.for_all
-    ( function a -> match a with
-    | {Commits.file_name=file_name;
-       Commits.modification=Commits.Created}
-        when (
-            (c_file file_name &&
-            Tools.is_file_in_paths file_name !requirement &&
-            not (Tools.is_file_in_paths file_name !antirequirement)
-            )
-        ) -> true
-    | {Commits.file_name=file_name;
-       Commits.modification=Commits.AddOnly}
-        when (
-            (c_file file_name &&
-            not (Tools.is_file_in_paths file_name !requirement &&
-                not (Tools.is_file_in_paths file_name !antirequirement))
-            )
-        ) -> true
-    | {Commits.file_name=file_name;
-       Commits.modification= Commits.Created | Commits.AddOnly}
-        when (h_file file_name) -> true
-    | {Commits.file_name=file_name; _ }
-        when not (
-            (c_file file_name) ||
-            (h_file file_name)
-        ) -> true
-    | _ -> false
-    ) commit.Commits.files &&
-
-    List.exists
-    ( function a -> match a with
-    | {Commits.file_name=file_name;
-       Commits.modification= Commits.Created | Commits.AddOnly}
-        when (
-            List.mem (Filename.basename file_name)
-            ["Makefile";"Kconfig";"Kbuild"]
-        ) -> true
-    | _ -> false
-    ) commit.Commits.files
-
-
-let keep_added commits =
-    List.filter driver_creation_filter commits
-
-
-let keep_existing commits =
-    Tools.git_setup ("v" ^ !target);
-
-    let files_exists files =
-        List.for_all (function file ->
-            Sys.file_exists file.Commits.file_name)
-            files
-    in
-    List.filter (function commit -> files_exists commit.Commits.files) commits
-
-
 let keep_compiling commits =
     let try_compile total i commit =
         let rank = Parmap.get_rank () in
@@ -388,7 +313,7 @@ let keep_compiling commits =
 
         try
             let is_compiling = List.for_all (fun file ->
-                if c_file file.Commits.file_name
+                if Tools.is_c_file file.Commits.file_name
                     then
                     let output =
                         debug_output (run_compile file.Commits.file_name)
@@ -413,8 +338,6 @@ let keep_compiling commits =
 
     Printf.eprintf "\n%!";
     List.concat res
-
-
 
 
 let compile total i commit =
@@ -447,7 +370,7 @@ let compile total i commit =
             then ("v" ^ !target)
             else commit.Commits.hash
         in
-        if c_file file || h_file file then
+        if Tools.is_c_file file || Tools.is_h_file file then
             (* Copy driver files into repository *)
             ignore (Sys.command
             (Printf.sprintf "git show %s:%s > %s" com file file))
@@ -457,7 +380,7 @@ let compile total i commit =
     let compile_res =
         List.map (function file ->
             let ct =
-                if c_file file
+                if Tools.is_c_file file
                     then compile_test file commit.Commits.hash
                     else (0,0,[])
             in
@@ -478,7 +401,7 @@ let compile total i commit =
 	    List.fold_left
 	      (fun (prev_orig,prev_reduced,cs)
 		  (file,(ct,ctreduced,_)) ->
-		if c_file file
+		if Tools.is_c_file file
 		then (ct + prev_orig,ctreduced + prev_reduced,cs+1)
 		else (prev_orig,prev_reduced,cs))
 	      (0,0,0) info in
@@ -556,14 +479,15 @@ let _ =
     Printf.eprintf "Filtering commits\n%!";
 
     (* Filter commits to keep only those which add a driver *)
-    let driver_add = keep_added parsed in
+    let driver_add = Filters.keep_added !requirement !antirequirement parsed in
     Printf.eprintf "%d commits are adding a driver\n%!"
         (List.length driver_add);
 
     (* Filter commits to keep only those which files still exist *)
-    let driver_exist = keep_existing driver_add in
+    let version = "v" ^ !target in
+    let driver_exist = Filters.keep_existing version driver_add in
     Printf.eprintf "%d commits still have the same files in %s \n%!"
-        (List.length driver_add) ("v" ^ !target);
+        (List.length driver_add) version;
 
     Printf.eprintf "Checking compilation in introduction commit version\n%!";
     let driver_compile = keep_compiling driver_exist in

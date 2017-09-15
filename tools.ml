@@ -60,3 +60,7 @@ let git_setup version =
   check_command "git reset --hard"; (* Remove uncommited tracked files *)
   check_command ("git checkout "^version); (* Set files to version *)
   if (version != "master") then check_command "make allyesconfig"
+
+
+let is_c_file file = Filename.check_suffix file ".c"
+let is_h_file file = Filename.check_suffix file ".h"

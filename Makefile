@@ -7,7 +7,7 @@ select_drivers: select_main.ml tools.ml commits.ml report.ml binding.ml process 
 	-I gcc-reduce/ gcc-reduce/common.cmx gcc-reduce/options.cmx \
 	gcc-reduce/lines.cmx gcc-reduce/types.cmx gcc-reduce/generate.cmx \
 	gcc-reduce/rules2.cmx gcc-reduce/read.cmx \
-	binding.ml select_main.ml
+	binding.ml filters.ml select_main.ml
 
 process: processErrors.ml
 	ocamlopt  -o process unix.cmxa str.cmxa processErrors.ml
