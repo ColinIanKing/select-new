@@ -168,8 +168,10 @@ let compile_test file commit =
             - count ".*(near initialization for "
         in
         let reducedres = List.length (error_warning_note_reduced reduced) in
-        Printf.eprintf "reduced res %d -> %d\n" originalres reducedres;
-        flush stderr;
+        let message =
+            Printf.sprintf "reduced res %d -> %d\n" originalres reducedres
+        in
+        ignore (debug_output [message]);
         if reducedres > 0
             then begin
                 let resfile =
