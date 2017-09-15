@@ -22,12 +22,17 @@ let start_time = ref "Jan 1, 2015"
 let end_time = ref "Dec 31, 2015"
 let range = ref ""
 let list = ref []
-let key = ref "2015"
+let work_dir = ref "2015"
 let requirement = ref ["drivers/"]
 let antirequirement = ref ["drivers/staging/"]
 let backport = ref false
 let debug = ref false
 
+
+let make_absolute path =
+    if (Filename.is_relative path)
+        then home ^ "/" ^ path
+        else path
 
 let read_to_file all ofile =
   let rec loop = function
@@ -104,7 +109,7 @@ let call_gcc_reduce res_chan =
 
 let compile_test file commit =
     let resfile =
-        Printf.sprintf "%s/%s/%s_%s" home !key (to_ul file) commit in
+        Printf.sprintf "%s/%s_%s" !work_dir (to_ul file) commit in
     let res, compiler_output =
         if Sys.file_exists resfile
         then
@@ -160,7 +165,7 @@ let compile_test file commit =
         if reducedres > 0
             then begin
                 let resfile =
-                    Printf.sprintf "%s/%s/%s_myreduced_%s" home !key (to_ul file)
+                    Printf.sprintf "%s/%s_myreduced_%s" !work_dir (to_ul file)
                     commit
                 in
                 let o = open_out resfile in
@@ -178,8 +183,8 @@ let pre_preparedir commit =
         let open Commits in
         let dir_name = Printf.sprintf "%s:%s" commit.hash commit.meta.date in
         (
-            Printf.sprintf "%s/%s_files/%s" home !key dir_name,
-            Printf.sprintf "%s/%s_results/%s" home !key dir_name
+            Printf.sprintf "%s_files/%s" !work_dir dir_name,
+            Printf.sprintf "%s_results/%s" !work_dir dir_name
         )
     in
     (if not (Sys.file_exists dir) then
@@ -214,8 +219,8 @@ let preparedir (meta,files) =
   let (commit,dir,resdir) =
     match Str.split (Str.regexp ":") meta with
       commit::date::_ ->
-	(commit,Printf.sprintf "%s/%s_files/%s:%s" home !key commit date,
-	 Printf.sprintf "%s/%s_results/%s:%s" home !key commit date)
+	(commit,Printf.sprintf "%s_files/%s:%s" !work_dir commit date,
+	 Printf.sprintf "%s_results/%s:%s" !work_dir commit date)
     | _ -> failwith "bad metadata" in
   let count = List.fold_left (fun prev (_,(n,_,_)) -> prev + n) 0 files in
   if count = 0
@@ -417,10 +422,10 @@ let compile total i commit =
     l;
   let data =
     Tools.cmd_to_list
-      (Printf.sprintf "cd %s/%s_results; find . -name Makefile" home !key) in
+      (Printf.sprintf "cd %s_results; find . -name Makefile" !work_dir) in
   let data =
     List.map (fun x -> List.hd (Str.split (Str.regexp "/Makefile") x)) data in
-  let o = open_out (Printf.sprintf "%s/%s_results/runall" home !key) in
+  let o = open_out (Printf.sprintf "%s_results/runall" !work_dir) in
   List.iter (function dir -> Printf.fprintf o "cd %s ; make -j15 all ; cd ../..\n" dir)
     data;
   close_out o
@@ -434,7 +439,7 @@ let options =
     "--list", Arg.String (fun x -> list := Str.split (Str.regexp ",") x),
        "commits, comma separated";
     "--target", Arg.Set_string target, "target directory";
-    "--key", Arg.Set_string key, "subdir for results";
+    "--key", Arg.Set_string work_dir, "subdir for results";
     "--subsystem", Arg.String (fun x -> requirement := [x]),
     "targeted directory";
     "--cores", Arg.Set_int cores, "number of cores";
@@ -449,14 +454,19 @@ let usage = ""
 let _ =
     Arg.parse (Arg.align options) anonymous usage;
 
-    let dir = Printf.sprintf "%s/%s" home !key in
-    let _ =
-        (* Create a working directory, purge the content if the dir exist
-        * TODO: check that dir is a directory
-        * Remove error message if dir already empty *)
-    if Sys.file_exists dir
-    then Sys.command (Printf.sprintf "/bin/rm %s/*" dir)
-    else Sys.command (Printf.sprintf "mkdir %s" dir) in
+    git := make_absolute !git;
+    work_dir := make_absolute !work_dir;
+
+    let () =
+        (* Create a working directory *)
+        if Sys.file_exists !work_dir
+            then if Sys.is_directory !work_dir
+                then ()
+                else failwith(!work_dir ^ " is a regular file")
+            else if (Sys.command (Printf.sprintf "mkdir -p %s" !work_dir) = 0)
+                then ()
+                else failwith("Error creating directory " ^ !work_dir)
+    in
 
     (* Clean the git repository *)
     Sys.chdir !git;
