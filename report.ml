@@ -34,26 +34,56 @@ let sedsafe s =
 let texsafe s = String.concat "\\_" (Str.split (Str.regexp "_") s)
 let texsafe2 s = texsafe(texsafe(texsafe(texsafe s)))
 
-let msg = function
-    Unknown -> "Unknown"
-  | UnknownFunction(fn) -> "Unknown function: "^fn
-  | UnknownFunction2(fn,alt) -> Printf.sprintf "Unknown function: %s/%s" fn alt
-  | UnknownVariable(cst) -> "Unknown constant: "^cst
-  | UnknownType(ty) -> "Unknown type: "^ty
-  | UnknownTypedef(ty) -> "Unknown typedef: "^ty
-  | UnknownField(str,fld) -> Printf.sprintf "Unknown field: %s.%s" str fld
-  | UnknownFieldOrType(str,fld) ->
-      Printf.sprintf "Unknown field or type: %s.%s" str fld
-  | UnknownFieldGeneric(fld) -> Printf.sprintf "Unknown field generic: %s" fld
-  | Void1(exp) -> Printf.sprintf "Void 1: %s" exp
-  | Void2(str,fld) -> Printf.sprintf "Void 2: %s.%s" str fld
-  | TypeChange(exp) -> Printf.sprintf "Type change: %s" exp
-  | TypeChange2(str,fld) -> Printf.sprintf "Type change 2: %s.%s" str fld
-  | BadInitType(str,fld) -> Printf.sprintf "Bad init type: %s.%s" str fld
-  | BadNonfnInit(str,fld) -> Printf.sprintf "Bad nonfn init: %s.%s" str fld
-  | BadArgType(fn,argn) -> Printf.sprintf "Bad arg type: %s.%s" fn argn
-  | TooManyArgs(fn) -> "Too many args: "^fn
-  | TooFewArgs(fn) -> "Too few args: "^fn
+
+let type_to_string = function
+    (* Convert type to name *)
+    | Unknown -> "Unknown"
+    | UnknownFunction(_) -> "Unknown function"
+    | UnknownFunction2(_, _) -> "Unknown function 2"
+    | UnknownVariable(_) -> "Unknown constant"
+    | UnknownType(_) -> "Unknown type"
+    | UnknownTypedef(_) -> "Unknown typedef"
+    | UnknownField(_, _) -> "Unknown field"
+    | UnknownFieldOrType(_, _) -> "Unknown field or type"
+    | UnknownFieldGeneric(_) -> "Unknown field generic"
+    | Void1(_) -> "Void 1"
+    | Void2(_, _) -> "Void 2"
+    | TypeChange(_) -> "Type change"
+    | TypeChange2(_, _) -> "Type change 2"
+    | BadInitType(_, _) -> "Bad init type"
+    | BadNonfnInit(_, _) -> "Bad nonfn init"
+    | BadArgType(_, _) -> "Bad arg type"
+    | TooManyArgs(_) -> "Too many args"
+    | TooFewArgs(_) -> "Too few args"
+
+
+let msg error_type = match error_type with
+  (* Convert type to error message *)
+    | Unknown -> type_to_string error_type
+
+    | UnknownFunction(arg)
+    | UnknownVariable(arg)
+    | UnknownType(arg)
+    | UnknownTypedef(arg)
+    | UnknownFieldGeneric(arg)
+    | Void1(arg)
+    | TypeChange(arg)
+    | TooManyArgs(arg)
+    | TooFewArgs(arg) -> Printf.sprintf "%s: %s" (type_to_string error_type) arg
+
+    | UnknownField(arg1, arg2)
+    | UnknownFieldOrType(arg1, arg2)
+    | Void2(arg1, arg2)
+    | TypeChange2(arg1, arg2)
+    | BadInitType(arg1, arg2)
+    | BadNonfnInit(arg1, arg2)
+    | BadArgType(arg1, arg2) ->
+        Printf.sprintf "%s: %s.%s" (type_to_string error_type) arg1 arg2
+
+    | UnknownFunction2(arg1, arg2) ->
+        Printf.sprintf "%s: %s/%s" (type_to_string error_type) arg1 arg2
+
+
 
 let to_ul s = String.concat "_" (Str.split (Str.regexp "/") s)
 
