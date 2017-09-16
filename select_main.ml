@@ -220,33 +220,55 @@ let pre_preparedir commit =
 	end);
     Tools.create_dir resdir false
 
-let preparedir (meta,files) =
-  let (commit,dir,resdir) =
-    let _, files_dir, results_dir = get_dirs !work_dir in
-    match Str.split (Str.regexp ":") meta with
-      commit::date::_ ->
-	(commit,Printf.sprintf "%s/%s:%s" files_dir commit date,
-	 Printf.sprintf "%s/%s:%s" results_dir commit date)
-    | _ -> failwith "bad metadata" in
-  let count = List.fold_left (fun prev (_,(n,_,_)) -> prev + n) 0 files in
-  if count = 0
-  then let _ = Sys.command ("/bin/rm -rf " ^ resdir) in ()
-  else
-    begin
+let preparedir (commit, files) =
+    let dir, resdir =
+        let open Commits in
+        let _, files_dir, results_dir = get_dirs !work_dir in
+        let dir_name = Printf.sprintf "%s:%s" commit.hash commit.meta.date in
+        (
+            files_dir ^ "/" ^ dir_name,
+            results_dir ^ "/" ^ dir_name
+        )
+    in
+    let count = List.fold_left (fun prev (_,(n,_,_)) -> prev + n) 0 files in
+    if count = 0
+        then let _ = Sys.command ("/bin/rm -rf " ^ resdir) in ()
+    else begin
       (* make patch queries *)
-      List.iter
-	(function (file,(n,_,error_types)) ->
-	  if n > 0
-	  then
-	    begin
-		  let cwd = Sys.getcwd () in
-		  let template_dir = home ^ "/templates" in
-		  let report_options = (!backport, file, commit, error_types) in
-          Sys.chdir resdir;
-		  Report.do_report ("v" ^ !target) !git template_dir report_options;
-		  Sys.chdir cwd;
-	    end)
-	files;
+        List.iter (function (file,(n,_,error_types)) ->
+            if n > 0
+            then begin
+                let cwd = Sys.getcwd () in
+                let template_dir = home ^ "/templates" in
+                let report_options =
+                    (!backport, file, commit.Commits.hash, error_types)
+                in
+                Sys.chdir resdir;
+                Report.do_report ("v" ^ !target)
+                    !git template_dir report_options;
+                Sys.chdir cwd;
+
+                let create_error_tree i error_type =
+                    (* Create directory tree to group patch by error type *)
+                    let issue = Report.type_to_normalized_name error_type in
+                    let hash = commit.Commits.hash in
+                    let report_dir_name =
+                        Printf.sprintf "%s_%s" (to_ul file) hash
+                    in
+                    let directory =
+                        Printf.sprintf "%s/errors-by-type/%s/%s"
+                            !work_dir issue report_dir_name
+                    in
+                    Tools.create_dir directory true;
+                    let cocci_file = Printf.sprintf "step%d.cocci" (i+1) in
+                    let cmd = Printf.sprintf "ln -s %s/%s/%s %s/%s"
+                        resdir report_dir_name cocci_file directory cocci_file
+                    in
+                    ignore (Sys.command cmd)
+                in
+                List.iteri create_error_tree error_types;
+            end
+        ) files;
       (* make redo infrastructure *)
       let chfiles =
 	List.filter (function file -> Tools.is_c_file file || Tools.is_h_file file)
@@ -259,7 +281,7 @@ let preparedir (meta,files) =
       Printf.fprintf o "all:\n";
       Printf.fprintf o "\tcd %s; git clean -dfx > /dev/null 2>&1; \\\n" !git;
       Printf.fprintf o "\tgit reset --hard %s > /dev/null 2>&1; \\\n"
-	(if !backport then commit else ("v" ^ !target));
+	(if !backport then commit.Commits.hash else ("v" ^ !target));
       Printf.fprintf o "\tmake allyesconfig > /dev/null 2>&1\n";
       List.iter
 	(function file ->
@@ -282,7 +304,7 @@ let preparedir (meta,files) =
 	    begin
 	      Printf.fprintf o
 		"\tfor i in `ls ../../*/%s/%s_%s/redo*cocci`; do \\\n"
-		(Filename.basename resdir) (Filename.basename file) commit;
+		(Filename.basename resdir) (Filename.basename file) commit.Commits.hash;
 	      Printf.fprintf o "\ttmp=$$(basename \"$$i\"); \\\n";
 	      Printf.fprintf o "\techo \"virtual before\" > $${tmp}; \\\n";
 	      Printf.fprintf o "\techo \"virtual after\" >> $${tmp}; \\\n";
@@ -397,9 +419,9 @@ let compile total i commit =
             (file, ct))
         files
     in
-    let res = (meta, compile_res) in
+    let res = (commit, compile_res) in
     preparedir res;
-    res
+    (meta, compile_res)
 
 
  let process l =
@@ -469,6 +491,7 @@ let _ =
     Tools.create_dir tmp_dir true;
     Tools.create_dir files_dir false;
     Tools.create_dir results_dir true;
+    Tools.create_dir (!work_dir ^ "/errors-by-type") true;
 
     (* Clean the git repository *)
     Sys.chdir !git;
