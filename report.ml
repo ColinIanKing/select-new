@@ -40,7 +40,7 @@ let type_to_string = function
     | Unknown -> "Unknown"
     | UnknownFunction(_) -> "Unknown function"
     | UnknownFunction2(_, _) -> "Unknown function"
-    | UnknownVariable(_) -> "variable Unknown"
+    | UnknownVariable(_) -> "Unknown variable"
     | UnknownType(_) -> "Unknown type"
     | UnknownTypedef(_) -> "Unknown typedef"
     | UnknownField(_, _) -> "Unknown field"
@@ -56,12 +56,14 @@ let type_to_string = function
     | TooManyArgs(_) -> "Too many args"
     | TooFewArgs(_) -> "Too few args"
 
-let type_to_cocci_file error_type =
-    (* Convert type to coccinelle file name *)
+let type_to_normalized_name error_type =
     let error_string = type_to_string error_type in
     let lowercase = String.lowercase error_string in
-    let basename = Str.global_replace (Str.regexp_string " ") "_" lowercase in
-    basename ^ ".cocci"
+    Str.global_replace (Str.regexp_string " ") "_" lowercase
+
+let type_to_cocci_file error_type =
+    (* Convert type to coccinelle file name *)
+    (type_to_normalized_name error_type) ^ ".cocci"
 
 let msg error_type = match error_type with
     (* Convert type to error message *)
