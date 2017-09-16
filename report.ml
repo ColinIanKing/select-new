@@ -39,17 +39,17 @@ let type_to_string = function
     (* Convert type to name *)
     | Unknown -> "Unknown"
     | UnknownFunction(_) -> "Unknown function"
-    | UnknownFunction2(_, _) -> "Unknown function 2"
-    | UnknownVariable(_) -> "Unknown constant"
+    | UnknownFunction2(_, _) -> "Unknown function"
+    | UnknownVariable(_) -> "variable Unknown"
     | UnknownType(_) -> "Unknown type"
     | UnknownTypedef(_) -> "Unknown typedef"
     | UnknownField(_, _) -> "Unknown field"
     | UnknownFieldOrType(_, _) -> "Unknown field or type"
     | UnknownFieldGeneric(_) -> "Unknown field generic"
-    | Void1(_) -> "Void 1"
-    | Void2(_, _) -> "Void 2"
+    | Void1(_) -> "Void1"
+    | Void2(_, _) -> "Void2"
     | TypeChange(_) -> "Type change"
-    | TypeChange2(_, _) -> "Type change 2"
+    | TypeChange2(_, _) -> "Type change"
     | BadInitType(_, _) -> "Bad init type"
     | BadNonfnInit(_, _) -> "Bad nonfn init"
     | BadArgType(_, _) -> "Bad arg type"
@@ -64,7 +64,7 @@ let type_to_cocci_file error_type =
     basename ^ ".cocci"
 
 let msg error_type = match error_type with
-  (* Convert type to error message *)
+    (* Convert type to error message *)
     | Unknown -> type_to_string error_type
 
     | UnknownFunction(arg)
@@ -113,96 +113,55 @@ let do_report target linux tdir options =
       let i = i + 1 in
       function arg ->
 	let cmd =
+      Printf.eprintf "preparing %s\n" (type_to_string arg);
+      let cocci_file = type_to_cocci_file arg in
 	  match arg with
-	    Unknown ->
-	      Printf.eprintf "preparing Unknown\n";
-	      Printf.sprintf "echo TODO > %s/step%d.cocci" dir i
-	  | UnknownFunction(fn) ->
-	      Printf.eprintf "preparing UnknownFunction\n";
-	      Printf.sprintf
-		"cat %s/unknown_function.cocci %s | %s > %s/step%d.cocci"
-		 tdir extra (replace "FN" fn) dir i
-	  | UnknownFunction2(fn,alt) ->
-	      Printf.eprintf "preparing UnknownFunction\n";
-	      Printf.sprintf
-		"cat %s/unknown_function.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "FN" fn) (replace "ALT" alt) dir i
-	  | UnknownVariable(cst) ->
-	      Printf.eprintf "preparing UnknownVariable\n";
-	      Printf.sprintf
-	      "cat %s/unknown_variable.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "CST" cst) dir i
-	  | UnknownType(ty) ->
-	      Printf.eprintf "preparing UnknownType\n";
-	      Printf.sprintf
-		"cat %s/unknown_type.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "TY" ty) dir i
-	  | UnknownTypedef(ty) ->
-	      Printf.eprintf "preparing UnknownTypedef\n";
-	      Printf.sprintf
-		"cat %s/unknown_typedef.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "TY" ty) dir i
-	  | UnknownField(str,fld) ->
-	      Printf.eprintf "preparing UnknownField\n";
-	      Printf.sprintf
-		"cat %s/unknown_field.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | UnknownFieldOrType(str,fld) ->
-	      Printf.eprintf "preparing UnknownFieldOrType\n";
-	      Printf.sprintf
-		"cat %s/unknown_field_or_type.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | UnknownFieldGeneric(fld) ->
-	      Printf.eprintf "preparing UnknownFieldGeneric\n";
-	      Printf.sprintf
-		"cat %s/unknown_field_generic.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "FLD" fld) dir i
-	  | Void1(exp) ->
-	      Printf.eprintf "preparing Void\n";
-	      Printf.sprintf
-		"cat %s/void1.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "EXP" exp) dir i
-	  | Void2(str,fld) ->
-	      Printf.eprintf "preparing Void\n";
-	      Printf.sprintf
-		"cat %s/void2.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | TypeChange(exp) ->
-	      Printf.eprintf "preparing TypeChange\n";
-	      Printf.sprintf
-		"cat %s/typechange.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "EXP" exp) dir i
-	  | TypeChange2(str,fld) ->
-	      Printf.eprintf "preparing TypeChange\n";
-	      Printf.sprintf
-		"cat %s/typechange.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | BadInitType(str,fld) ->
-	      Printf.eprintf "preparing BadInitType\n";
-	      Printf.sprintf
-		"cat %s/bad_init_type.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | BadNonfnInit(str,fld) ->
-	      Printf.eprintf "preparing BadNonfnInit\n";
-	      Printf.sprintf
-		"cat %s/bad_nonfn_init.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "STR" str) (replace "FLD" fld) dir i
-	  | BadArgType(fn,argn) ->
-	      let argn = string_of_int(int_of_string argn - 1) in
-	      Printf.eprintf "preparing BadArgType\n";
-	      Printf.sprintf
-		"cat %s/bad_arg_type.cocci %s | %s | %s > %s/step%d.cocci"
-		tdir extra (replace "FN" fn) (replace "ARG" argn) dir i
-	  | TooManyArgs(fn) ->
-	      Printf.eprintf "preparing TooManyArgs\n";
-	      Printf.sprintf
-		"cat %s/too_many_args.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "FN" fn) dir i
-	  | TooFewArgs(fn) ->
-	      Printf.eprintf "preparing TooFewArgs\n";
-	      Printf.sprintf
-		"cat %s/too_few_args.cocci %s | %s > %s/step%d.cocci"
-		tdir extra (replace "FN" fn) dir i in
+      | Unknown ->
+          Printf.sprintf "echo TODO > %s/step%d.cocci" dir i
+
+      | UnknownFunction(fn)
+      | TooManyArgs(fn)
+      | TooFewArgs(fn) ->
+          Printf.sprintf "cat %s/%s %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "FN" fn) dir i
+
+      | UnknownVariable(cst) ->
+          Printf.sprintf "cat %s/%s %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "CST" cst) dir i
+
+      | UnknownType(ty)
+      | UnknownTypedef(ty) ->
+          Printf.sprintf "cat %s/%s %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "TY" ty) dir i
+
+      | UnknownFieldGeneric(fld) ->
+          Printf.sprintf "cat %s/%s %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "FLD" fld) dir i
+
+      | Void1(exp)
+      | TypeChange(exp) ->
+          Printf.sprintf "cat %s/%s %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "EXP" exp) dir i
+
+      | UnknownFunction2(fn,alt) ->
+          Printf.sprintf "cat %s/%s %s | %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "FN" fn) (replace "ALT" alt) dir i
+
+      | UnknownField(str,fld)
+      | UnknownFieldOrType(str,fld)
+      | Void2(str,fld)
+      | TypeChange2(str,fld)
+      | BadInitType(str,fld)
+      | BadNonfnInit(str,fld) ->
+          Printf.sprintf "cat %s/%s %s | %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "STR" str) (replace "FLD" fld) dir i
+
+      | BadArgType(fn,argn) ->
+          let argn = string_of_int(int_of_string argn - 1) in
+          Printf.sprintf "cat %s/%s %s | %s | %s > %s/step%d.cocci"
+          tdir cocci_file extra (replace "FN" fn) (replace "ARG" argn) dir i
+
+    in
 	let _ = Sys.command cmd in
 	())
     args;
