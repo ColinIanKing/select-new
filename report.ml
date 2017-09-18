@@ -306,84 +306,63 @@ let do_report target linux tdir options =
 	    | TooFewArgs(fn) -> texsafe fn in
 	  Printf.fprintf o "\n\\section{%s}\n\n" sec;
 	  let cmd =
+	    let text_file = (type_to_normalized_name arg) ^ ".txt" in
 	    match arg with
-	      Unknown -> ""
-	    | UnknownFunction(fn) ->
-		Printf.sprintf "%s %s/unknown_function.txt | %s > %s"
-		  (replace "FN" (texsafe2 fn)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownFunction2(fn,alt) ->
-		Printf.sprintf "%s %s/unknown_function2.txt | %s | %s > %s"
-		  (replace "FN" (texsafe2 fn)) tdir
-		  (replace "ALT" (texsafe2 alt))
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownVariable(cst) ->
-		Printf.sprintf "%s %s/unknown_variable.txt | %s > %s"
-		  (replace "CST" (texsafe2 cst)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownType(ty) ->
-		Printf.sprintf "%s %s/unknown_type.txt | %s > %s"
-		  (replace "TY" (texsafe2 ty)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownTypedef(ty) ->
-		Printf.sprintf "%s %s/unknown_type.txt | %s > %s"
-		  (replace "TY" (texsafe2 ty)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownField(str,fld) ->
-		Printf.sprintf "%s %s/unknown_field.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownFieldOrType(str,fld) ->
-		Printf.sprintf "%s %s/unknown_field_or_type.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | UnknownFieldGeneric(fld) ->
-		Printf.sprintf "%s %s/unknown_field_generic.txt | %s > %s"
-		  (replace "FLD" (texsafe2 fld)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | Void1(exp) ->
-		Printf.sprintf "%s %s/void1.txt | %s > %s"
-		  (replace "EXP" (texsafe2 exp)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | Void2(str,fld) ->
-		Printf.sprintf "%s %s/void2.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | TypeChange(exp) ->
-		Printf.sprintf "%s %s/typechange.txt | %s > %s"
-		  (replace "EXP" (texsafe2 exp)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | TypeChange2(str,fld) ->
-		Printf.sprintf "%s %s/typechange2.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | BadInitType(str,fld) ->
-		Printf.sprintf "%s %s/bad_init_type.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | BadNonfnInit(str,fld) ->
-		Printf.sprintf "%s %s/bad_nonfn_init.txt | %s | %s > %s"
-		  (replace "STR" (texsafe2 str)) tdir
-		  (replace "FLD" (texsafe2 fld))
-		  (replace "NUM" (string_of_int i)) txt
-	    | BadArgType(fn,argn) ->
-		Printf.sprintf "%s %s/bad_arg_type.txt | %s | %s > %s"
-		  (replace "FN" (texsafe2 fn)) tdir
-		  (replace "ARG" (texsafe2 argn))
-		  (replace "NUM" (string_of_int i)) txt
-	    | TooManyArgs(fn) ->
-		Printf.sprintf "%s %s/too_many_args.txt | %s > %s"
-		  (replace "FN" (texsafe2 fn)) tdir
-		  (replace "NUM" (string_of_int i)) txt
-	    | TooFewArgs(fn) ->
-		Printf.sprintf "%s %s/too_few_args.txt | %s > %s"
-		  (replace "FN" (texsafe2 fn)) tdir
-		  (replace "NUM" (string_of_int i)) txt in
+        | Unknown ->""
+
+        | UnknownFunction(fn)
+        | TooManyArgs(fn)
+        | TooFewArgs(fn) ->
+            Printf.sprintf "%s %s/%s | %s > %s"
+                (replace "FN" (texsafe2 fn)) tdir text_file
+                (replace "NUM" (string_of_int i)) txt
+
+        | UnknownVariable(cst) ->
+            Printf.sprintf "%s %s/%s | %s > %s"
+                (replace "CST" (texsafe2 cst)) tdir text_file
+                (replace "NUM" (string_of_int i)) txt
+
+        | UnknownType(ty)
+        | UnknownTypedef(ty) ->
+            Printf.sprintf "%s %s/%s | %s > %s"
+                (replace "TY" (texsafe2 ty)) tdir text_file
+                (replace "NUM" (string_of_int i)) txt
+
+        | UnknownFieldGeneric(fld) ->
+            Printf.sprintf "%s %s/%s | %s > %s"
+                (replace "FLD" (texsafe2 fld)) tdir text_file
+                (replace "NUM" (string_of_int i)) txt
+
+        | Void1(exp)
+        | TypeChange(exp) ->
+            Printf.sprintf "%s %s/%s | %s > %s"
+                (replace "EXP" (texsafe2 exp)) tdir text_file
+                (replace "NUM" (string_of_int i)) txt
+
+        | UnknownFunction2(fn,alt) ->
+            Printf.sprintf "%s %s/%s | %s | %s > %s"
+                (replace "FN" (texsafe2 fn)) tdir text_file
+                (replace "ALT" (texsafe2 alt))
+                (replace "NUM" (string_of_int i)) txt
+
+        | UnknownField(str,fld)
+        | UnknownFieldOrType(str,fld)
+        | Void2(str,fld)
+        | TypeChange2(str,fld)
+        | BadInitType(str,fld)
+        | BadNonfnInit(str,fld) ->
+            Printf.sprintf "%s %s/%s | %s | %s > %s"
+                (replace "STR" (texsafe2 str)) tdir text_file
+                (replace "FLD" (texsafe2 fld))
+                (replace "NUM" (string_of_int i)) txt
+
+        | BadArgType(fn,argn) ->
+            Printf.sprintf "%s %s/%s | %s | %s > %s"
+                (replace "FN" (texsafe2 fn)) tdir text_file
+                (replace "ARG" (texsafe2 argn))
+                (replace "NUM" (string_of_int i)) txt
+
+	    in
 	  (if not(cmd = "")
 	  then let _ = Sys.command cmd in copy_file o txt);
 	  Printf.fprintf o "\n\\begin{quote}\n";
