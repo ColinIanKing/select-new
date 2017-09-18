@@ -206,7 +206,7 @@ let do_report target linux tdir options =
 	  let i = i + 1 in
 	  Printf.fprintf o "\nstep%d: step%d.cocci\n" i i;
 	  Printf.fprintf o "\t$(PREQUEL) --sp step%d.cocci $(ARGS) \\\n" i;
-	  Printf.fprintf o "\t--msg \"%s\"\n" (msg arg))
+	  Printf.fprintf o "\t--msg \"%s\"\n" (String.escaped (msg arg)))
 	args);
   (match args with
     [] ->
@@ -261,7 +261,7 @@ let do_report target linux tdir options =
 		  "\t$(PREQUEL) --sp redo%d.cocci $(RARGS) %s \\\n"
 		  i kwd)
 	    kwds;
-	  Printf.fprintf o "\t--msg \"%s\"\n" (msg arg))
+	  Printf.fprintf o "\t--msg \"%s\"\n" (String.escaped (msg arg)))
 	args);
   close_out o;
   (* put the report in the directory *)
