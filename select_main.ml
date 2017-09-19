@@ -259,7 +259,23 @@ let preparedir (commit, files) =
                         Printf.sprintf "%s/errors-by-type/%s/%s"
                             !work_dir issue report_dir_name
                     in
-                    Tools.create_dir directory true;
+                    Tools.create_dir directory false;
+                    let attrs = [Open_wronly; Open_append; Open_creat] in
+                    let makefile =
+                        open_out_gen attrs 0o644 (directory ^ "/Makefile")
+                    in
+                    (if not (Sys.file_exists (directory ^ "/results"))
+                    then begin
+                        let cmd = Printf.sprintf "ln -s %s/%s %s/results"
+                            resdir report_dir_name directory
+                        in
+                        ignore (Sys.command cmd);
+                        Printf.fprintf makefile "all:\n\t$(MAKE) -C %s/results "
+                            directory;
+                    end
+                    );
+                    Printf.fprintf makefile "step%d " (i+1);
+                    close_out makefile;
                     let cocci_file = Printf.sprintf "step%d.cocci" (i+1) in
                     let cmd = Printf.sprintf "ln -s %s/%s/%s %s/%s"
                         resdir report_dir_name cocci_file directory cocci_file
