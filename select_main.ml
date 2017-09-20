@@ -299,7 +299,8 @@ let preparedir (commit, files) =
       let o = open_out makefile in
       Printf.fprintf o "all:\n";
       Printf.fprintf o "\tcd %s; git clean -dfx > /dev/null 2>&1; \\\n" !git;
-      Printf.fprintf o "\tgit reset --hard %s > /dev/null 2>&1; \\\n"
+      Printf.fprintf o "\tgit reset --hard > /dev/null 2>&1; \\\n";
+      Printf.fprintf o "\tgit checkout %s > /dev/null 2>&1; \\\n"
 	(if !backport then commit.Commits.hash else ("v" ^ !target));
       Printf.fprintf o "\tmake allyesconfig > /dev/null 2>&1\n";
       List.iter
