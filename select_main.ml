@@ -270,11 +270,15 @@ let preparedir (commit, files) =
                             resdir report_dir_name directory
                         in
                         ignore (Sys.command cmd);
-                        Printf.fprintf makefile "all:\n\t$(MAKE) -C results ";
+                        Printf.fprintf makefile "all:\n";
                     end
                     );
-                    Printf.fprintf makefile "step%d " (i+1);
+                    Printf.fprintf makefile "\t$(MAKE) -C results step%d\n" (i+1);
+                    let porg_file = Printf.sprintf "step%d.porg" (i+1) in
+                    Printf.fprintf makefile "\tln -sr %s/%s/%s %s/%s\n"
+                        resdir report_dir_name porg_file directory porg_file;
                     close_out makefile;
+
                     let cocci_file = Printf.sprintf "step%d.cocci" (i+1) in
                     let cmd = Printf.sprintf "ln -sr %s/%s/%s %s/%s"
                         resdir report_dir_name cocci_file directory cocci_file
