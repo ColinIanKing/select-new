@@ -270,8 +270,7 @@ let preparedir (commit, files) =
                             resdir report_dir_name directory
                         in
                         ignore (Sys.command cmd);
-                        Printf.fprintf makefile "all:\n\t$(MAKE) -C %s/results "
-                            directory;
+                        Printf.fprintf makefile "all:\n\t$(MAKE) -C results ";
                     end
                     );
                     Printf.fprintf makefile "step%d " (i+1);
