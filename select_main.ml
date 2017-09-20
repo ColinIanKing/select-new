@@ -266,7 +266,7 @@ let preparedir (commit, files) =
                     in
                     (if not (Sys.file_exists (directory ^ "/results"))
                     then begin
-                        let cmd = Printf.sprintf "ln -s %s/%s %s/results"
+                        let cmd = Printf.sprintf "ln -sr %s/%s %s/results"
                             resdir report_dir_name directory
                         in
                         ignore (Sys.command cmd);
@@ -276,7 +276,7 @@ let preparedir (commit, files) =
                     Printf.fprintf makefile "step%d " (i+1);
                     close_out makefile;
                     let cocci_file = Printf.sprintf "step%d.cocci" (i+1) in
-                    let cmd = Printf.sprintf "ln -s %s/%s/%s %s/%s"
+                    let cmd = Printf.sprintf "ln -sr %s/%s/%s %s/%s"
                         resdir report_dir_name cocci_file directory cocci_file
                     in
                     ignore (Sys.command cmd)
