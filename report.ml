@@ -1,3 +1,5 @@
+let debug = ref false
+
 type sp =
     UnknownFunction of string
   | UnknownFunction2 of string * string
@@ -115,7 +117,9 @@ let do_report target linux tdir options =
       let i = i + 1 in
       function arg ->
 	let cmd =
-      Printf.eprintf "preparing %s\n" (type_to_string arg);
+	  (if !debug
+	  then Printf.eprintf "DEBUG: Preparing %s\n" (type_to_string arg);
+	  );
       let cocci_file = type_to_cocci_file arg in
 	  match arg with
       | Unknown ->

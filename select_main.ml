@@ -503,6 +503,9 @@ let usage = ""
 let _ =
     Arg.parse (Arg.align options) anonymous usage;
 
+    Rules2.debug := !debug;
+    Report.debug := !debug;
+
     git := make_absolute !git;
     work_dir := make_absolute !work_dir;
 
