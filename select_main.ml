@@ -16,7 +16,7 @@ There are no constraints on other files. *)
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
-let target = ref "v4.6"
+let target = ref ""
 let cores = ref 1
 let start_time = ref "Jan 1, 2015"
 let end_time = ref "Dec 31, 2015"
@@ -530,6 +530,15 @@ let () =
     (* Clean the git repository *)
     Sys.chdir !git;
     Tools.git_setup "master";
+
+    (if !target = ""
+    then begin
+        let last_git_tag =
+            "git describe --tags `git rev-list --tags --max-count=1`"
+        in
+        target := List.hd (Tools.cmd_to_list last_git_tag)
+    end
+    );
 
     (* Fetch commit hash based on program arguments *)
     Printf.eprintf "Listing commits\n%!";
