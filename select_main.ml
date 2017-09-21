@@ -447,7 +447,7 @@ let compile total i commit =
     (meta, compile_res)
 
 
- let process l =
+let process l =
   let unsome =
     List.fold_left
       (function prev ->
@@ -470,17 +470,26 @@ let compile total i commit =
 	(function (file,(ct,ctreduced, _)) ->
 	  Printf.printf "   %s: %d -> %d\n" file ct ctreduced)
 	info)
-    l;
-  let _, _, results_dir = get_dirs !work_dir in
-  let data =
-    Tools.cmd_to_list
-      (Printf.sprintf "cd %s; find . -name Makefile" results_dir) in
-  let data =
-    List.map (fun x -> List.hd (Str.split (Str.regexp "/Makefile") x)) data in
-  let o = open_out (Printf.sprintf "%s/runall" results_dir) in
-  List.iter (function dir -> Printf.fprintf o "cd %s ; make -j15 all ; cd ../..\n" dir)
-    data;
-  close_out o
+    l; ()
+
+let create_runall () =
+    (* Create the runall file which launch all compilation
+     * TODO: Replace legacy find command by pure ocaml using directories
+     * informations from other steps *)
+
+    let _, _, results_dir = get_dirs !work_dir in
+    let data = Tools.cmd_to_list
+        (Printf.sprintf "cd %s; find . -name Makefile" results_dir)
+    in
+    let data = List.map (fun x ->
+            List.hd (Str.split (Str.regexp "/Makefile") x)
+        ) data
+    in
+    let o = open_out (Printf.sprintf "%s/runall" results_dir) in
+    List.iter (function dir ->
+        Printf.fprintf o "cd %s ; make all ; cd ../..\n" dir
+    ) data;
+    close_out o
 
 (* ------------------------------------------------------------------------ *)
 
@@ -562,4 +571,5 @@ let _ =
             else List.mapi (compile (List.length driver_compile)) driver_compile
     in
     Printf.eprintf "\n%!";
-    process res
+    process res;
+    create_runall ()
