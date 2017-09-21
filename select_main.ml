@@ -354,13 +354,13 @@ let preparedir (commit, files) =
 let keep_compiling commits =
     let try_compile total i commit =
         let rank = Parmap.get_rank () in
-        (if ((Parmap.get_ncores ()) != 1)
+        (if rank != -1
             then Sys.chdir (giti rank)
         );
 
         Tools.git_setup commit.Commits.hash;
 
-        if rank = 0
+        if rank <= 0
             then Tools.print_progress total i;
 
         try
@@ -385,7 +385,10 @@ let keep_compiling commits =
     in
     let total = List.length commits in
     let res =
-        Parmap.parmapi (try_compile total) (Parmap.L(commits)) ~ncores:(!cores)
+        if !cores > 1
+            then Parmap.parmapi (try_compile total) (Parmap.L(commits))
+                ~ncores:(!cores)
+            else List.mapi (try_compile total) commits
     in
 
     Printf.eprintf "\n%!";
@@ -394,11 +397,11 @@ let keep_compiling commits =
 
 let compile total i commit =
     let rank = Parmap.get_rank () in
-    (if ((Parmap.get_ncores ()) != 1)
+    (if rank != -1
         then Sys.chdir (giti rank)
     );
 
-    if rank = 0
+    if rank <= 0
         then Tools.print_progress total i;
 
     (* Extract file name of files still existing in the commit *)
@@ -553,8 +556,10 @@ let _ =
 
     (* Test compilation and apply gcc-reduce *)
     let res =
-        Parmap.parmapi (compile (List.length driver_compile))
-            (Parmap.L(driver_compile)) ~ncores:(!cores)
+        if !cores > 1
+            then Parmap.parmapi (compile (List.length driver_compile))
+                (Parmap.L(driver_compile)) ~ncores:(!cores)
+            else List.mapi (compile (List.length driver_compile)) driver_compile
     in
     Printf.eprintf "\n%!";
     process res
