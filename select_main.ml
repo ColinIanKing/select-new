@@ -554,12 +554,12 @@ let () =
     (* Filter commits to keep only those which files still exist *)
     let driver_exist = Filters.keep_existing !target driver_add in
     Printf.eprintf "%d commits still have the same files in %s \n%!"
-        (List.length driver_add) !target;
+        (List.length driver_exist) !target;
 
     Printf.eprintf "Checking compilation in introduction commit version\n%!";
     let driver_compile = keep_compiling driver_exist in
     Printf.eprintf "%d/%d drivers compile in their original version\n%!"
-        (List.length driver_compile) (List.length driver_add);
+        (List.length driver_compile) (List.length driver_exist);
 
     (* Test compilation and apply gcc-reduce *)
     let res =
