@@ -512,7 +512,7 @@ let anonymous s = failwith "no anonymous arguments"
 
 let usage = ""
 
-let _ =
+let () =
     Arg.parse (Arg.align options) anonymous usage;
 
     Rules2.debug := !debug;
