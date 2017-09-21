@@ -16,7 +16,7 @@ There are no constraints on other files. *)
 let git = ref "/run/shm/linux"
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
-let target = ref "4.6"
+let target = ref "v4.6"
 let cores = ref 1
 let start_time = ref "Jan 1, 2015"
 let end_time = ref "Dec 31, 2015"
@@ -215,7 +215,7 @@ let pre_preparedir commit =
 	  ignore
 	    (Sys.command
 	      (Printf.sprintf "git show %s:%s > %s/%s"
-		 (if !backport then ("v" ^ !target) else commit.Commits.hash)
+		 (if !backport then !target else commit.Commits.hash)
 		 file dir (to_ul file)))) chfiles
 	end);
     Tools.create_dir resdir false
@@ -244,8 +244,7 @@ let preparedir (commit, files) =
                     (!backport, file, commit.Commits.hash, error_types)
                 in
                 Sys.chdir resdir;
-                Report.do_report ("v" ^ !target)
-                    !git template_dir report_options;
+                Report.do_report !target !git template_dir report_options;
                 Sys.chdir cwd;
 
                 let create_error_tree i error_type =
@@ -301,7 +300,7 @@ let preparedir (commit, files) =
       Printf.fprintf o "\tcd %s; git clean -dfx > /dev/null 2>&1; \\\n" !git;
       Printf.fprintf o "\tgit reset --hard > /dev/null 2>&1; \\\n";
       Printf.fprintf o "\tgit checkout %s > /dev/null 2>&1; \\\n"
-	(if !backport then commit.Commits.hash else ("v" ^ !target));
+	(if !backport then commit.Commits.hash else !target);
       Printf.fprintf o "\tmake allyesconfig > /dev/null 2>&1\n";
       List.iter
 	(function file ->
@@ -416,13 +415,13 @@ let compile total i commit =
 
     let version = if !backport
         then commit.Commits.hash
-        else ("v" ^ !target)
+        else !target
     in
     Tools.git_setup version;
 
     List.iter (function file ->
         let com = if !backport
-            then ("v" ^ !target)
+            then !target
             else commit.Commits.hash
         in
         if Tools.is_c_file file || Tools.is_h_file file then
@@ -553,10 +552,9 @@ let () =
         (List.length driver_add);
 
     (* Filter commits to keep only those which files still exist *)
-    let version = "v" ^ !target in
-    let driver_exist = Filters.keep_existing version driver_add in
+    let driver_exist = Filters.keep_existing !target driver_add in
     Printf.eprintf "%d commits still have the same files in %s \n%!"
-        (List.length driver_add) version;
+        (List.length driver_add) !target;
 
     Printf.eprintf "Checking compilation in introduction commit version\n%!";
     let driver_compile = keep_compiling driver_exist in
