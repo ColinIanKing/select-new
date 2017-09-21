@@ -1,12 +1,28 @@
-all: select_drivers
+SRC=tools.ml commits.ml report.ml binding.ml filters.ml select_main.ml
+NATIVE_OBJS=$(SRC:.ml=.cmx)
+NATIVE_OBJS_COV=$(SRC:%.ml=lib/coverage/%.cmx)
 
-select_drivers: select_main.ml tools.ml commits.ml binding.ml report process gcc-reduce parmap
-	ocamlopt -g -o select_drivers \
-	-I parmap/_build -I gcc-reduce \
+PARMAP_BUILD_DIR=parmap/_build
+PARMAP_NATIVE_LIB=parmap.cmxa
+
+GCC_REDUCE_BUILD_DIR=gcc-reduce
+GCC_REDUCE_NATIVE_OBJS=common.cmx options.cmx lines.cmx \
+	types.cmx generate.cmx rules2.cmx read.cmx
+
+COVERAGE_NATIVE_DIR=lib/coverage
+
+
+EXEC=select_drivers
+
+all: $(EXEC)
+
+select_drivers: $(SRC)
+	ocamlopt -g -o $(EXEC) \
+	-I $(PARMAP_BUILD_DIR) -I $(GCC_REDUCE_BUILD_DIR) \
 	str.cmxa nums.cmxa unix.cmxa bigarray.cmxa \
-	parmap.cmxa \
-	common.cmx options.cmx lines.cmx types.cmx generate.cmx rules2.cmx read.cmx \
-	tools.ml commits.ml report.ml binding.ml filters.ml select_main.ml
+	$(PARMAP_NATIVE_LIB) \
+	$(GCC_REDUCE_NATIVE_OBJS) \
+	$(SRC)
 
 gcc-reduce: gcc-reduce/gcc-reduce.opt
 
@@ -29,3 +45,16 @@ report: report.ml report_main.ml
 
 select_sp: select_sp.ml
 	ocamlopt -o select_sp str.cmxa unix.cmxa select_sp.ml
+
+lib/coverage/%.cmx: %.ml
+	ocamlfind opt -package bisect_ppx -c $< -o $@ \
+	-I $(PARMAP_BUILD_DIR) -I $(GCC_REDUCE_BUILD_DIR) \
+	-I $(COVERAGE_NATIVE_DIR)
+
+coverage: $(NATIVE_OBJS_COV)
+	ocamlfind opt -linkpkg -package bisect_ppx \
+	-I $(PARMAP_BUILD_DIR) -I $(GCC_REDUCE_BUILD_DIR) \
+	str.cmxa nums.cmxa unix.cmxa bigarray.cmxa \
+	$(PARMAP_NATIVE_LIB) \
+	$(GCC_REDUCE_NATIVE_OBJS) \
+	$(NATIVE_OBJS_COV) -o $(EXEC)_coverage
