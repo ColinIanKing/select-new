@@ -13,7 +13,7 @@ Makefile, Kconfig, and Kbuild should only contain additions
 
 There are no constraints on other files. *)
 
-let git = ref "/run/shm/linux"
+let git = ref ""
 let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
 let target = ref ""
@@ -22,12 +22,13 @@ let start_time = ref "Jan 1, 2015"
 let end_time = ref "Dec 31, 2015"
 let range = ref ""
 let list = ref []
-let work_dir = ref "2015"
+let work_dir = ref ""
 let requirement = ref ["drivers/"]
 let antirequirement = ref ["drivers/staging/"]
 let backport = ref false
 let debug = ref false
 
+let argn = ref 0
 
 let make_absolute path =
     if (Filename.is_relative path)
@@ -492,27 +493,38 @@ let create_runall () =
 
 (* ------------------------------------------------------------------------ *)
 
-let options =
-  ["--start", Arg.Set_string start_time, "starting time";
-    "--end", Arg.Set_string end_time, "ending time";
-    "--range", Arg.Set_string range, "commit range";
+let options = [
+    "--target", Arg.Set_string target,
+        "hash/tag Target version (default: latest tag)";
+    "--start", Arg.Set_string start_time,
+        "start_date Starting date for commit search";
+    "--end", Arg.Set_string end_time, "end_date Ending date for commit search";
+    "--range", Arg.Set_string range,
+        "commit1..commit2 Commit range for commit search";
     "--list", Arg.String (fun x -> list := Str.split (Str.regexp ",") x),
-       "commits, comma separated";
-    "--target", Arg.Set_string target, "target directory";
-    "--key", Arg.Set_string work_dir, "subdir for results";
+        "commit1[,commit2,...] Commit hashes, comma separated";
     "--subsystem", Arg.String (fun x -> requirement := [x]),
     "targeted directory";
-    "--cores", Arg.Set_int cores, "number of cores";
-    "--git", Arg.Set_string git, "Linux source code";
-    "--debug", Arg.Set debug, "Print debug informations";
-    "--backport", Arg.Set backport, "backport from dest to src"]
+    "--cores", Arg.Set_int cores,
+        "number_of_cores Number of thread to run in parallel";
+    "--debug", Arg.Set debug, " Print debug informations";
+    "--backport", Arg.Set backport, " Backport from destination to source"]
 
-let anonymous s = failwith "no anonymous arguments"
+let anonymous arg = match !argn with
+    | 0 -> work_dir := arg; argn := !argn + 1
+    | 1 -> git := arg; argn := !argn + 1
+    | _ -> raise (Arg.Bad("Too many arguments"))
 
-let usage = ""
+let usage = Printf.sprintf "Usage: %s results_dir path_to_linux_git\nOptions:"
+    Sys.executable_name
 
 let () =
     Arg.parse (Arg.align options) anonymous usage;
+
+    if !argn != 2
+        then Arg.usage options usage
+    else begin
+
 
     Rules2.debug := !debug;
     Report.debug := !debug;
@@ -580,3 +592,5 @@ let () =
     Printf.eprintf "\n%!";
     process res;
     create_runall ()
+
+    end
