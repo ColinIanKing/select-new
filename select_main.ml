@@ -18,8 +18,8 @@ let giti i = Printf.sprintf "%s%d" !git i
 let home = Sys.getcwd ()
 let target = ref ""
 let cores = ref 1
-let start_time = ref "Jan 1, 2015"
-let end_time = ref "Dec 31, 2015"
+let start_time = ref ""
+let end_time = ref ""
 let range = ref ""
 let list = ref []
 let work_dir = ref ""
@@ -518,8 +518,17 @@ let usage = Printf.sprintf "Usage: %s results_dir path_to_linux_git\nOptions:"
 let () =
     Arg.parse (Arg.align options) anonymous usage;
 
+    let is_list = !list <> [] in
+    let is_range = !range <> "" in
+    let is_date = (!start_time <> "") && (!end_time <> "") in
+
     if !argn != 2
         then Arg.usage options usage
+    else if not (is_list || is_range || is_date)
+        then begin Printf.eprintf
+            "Either --list or --range or --start and --end must be present\n\n";
+            Arg.usage options usage
+        end
     else begin
 
 
