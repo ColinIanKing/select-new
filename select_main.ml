@@ -448,29 +448,26 @@ let compile total i commit =
 
 
 let process l =
-  let unsome =
-    List.fold_left
-      (function prev ->
-	function (meta,info) ->
-	  let (tot,totreduced,cs) =
-	    List.fold_left
-	      (fun (prev_orig,prev_reduced,cs)
-		  (file,(ct,ctreduced,_)) ->
-		if Tools.is_c_file file
-		then (ct + prev_orig,ctreduced + prev_reduced,cs+1)
-		else (prev_orig,prev_reduced,cs))
-	      (0,0,0) info in
-	  (tot, totreduced, meta, info) :: prev)
-      [] l in
-  let l = List.rev (List.sort compare unsome) in
-  List.iter
-    (function (tot,totreduced,meta,info) ->
-      Printf.printf "%d -> %d: %s\n" tot totreduced meta;
-      List.iter
-	(function (file,(ct,ctreduced, _)) ->
-	  Printf.printf "   %s: %d -> %d\n" file ct ctreduced)
-	info)
-    l; ()
+    let unsome = List.fold_left (function prev ->
+        function (meta, info) ->
+            let (tot,totreduced,cs) = List.fold_left
+                (fun (prev_orig,prev_reduced,cs) (file,(ct,ctreduced,_)) ->
+                    if Tools.is_c_file file
+                        then (ct + prev_orig,ctreduced + prev_reduced,cs+1)
+                        else (prev_orig,prev_reduced,cs)
+                ) (0,0,0) info
+            in
+        (tot, totreduced, meta, info) :: prev
+    ) [] l
+    in
+    let l = List.rev (List.sort compare unsome) in
+    List.iter (function (tot,totreduced,meta,info) ->
+        Printf.printf "%d -> %d: %s\n" tot totreduced meta;
+        List.iter (function (file,(ct,ctreduced, _)) ->
+            Printf.printf "   %s: %d -> %d\n" file ct ctreduced
+        ) info
+    ) l;
+    ()
 
 let create_runall () =
     (* Create the runall file which launch all compilation
