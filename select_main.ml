@@ -293,7 +293,6 @@ let preparedir (commit, files) =
 	List.filter (function file -> Tools.is_c_file file || Tools.is_h_file file)
 	  (List.map fst files) in
       let cfiles = List.filter Tools.is_c_file chfiles in
-      let hfiles = List.filter Tools.is_h_file chfiles in
       (* make the makefile *)
       let makefile = Printf.sprintf "%s/Makefile" dir in
       let o = open_out makefile in
@@ -314,38 +313,6 @@ let preparedir (commit, files) =
 	(function file ->
 	  Printf.fprintf o "\tcd %s; make %s.o > /dev/null\n" !git
 	    (Filename.chop_extension file))
-	cfiles;
-      Printf.fprintf o "\ncocci:\n";
-      List.iter
-	(function file ->
-	  let (n,_,_) = List.assoc file files in
-	  if n > 0
-	  then
-	    begin
-	      Printf.fprintf o
-		"\tfor i in `ls ../../*/%s/%s_%s/redo*cocci`; do \\\n"
-		(Filename.basename resdir) (Filename.basename file) commit.Commits.hash;
-	      Printf.fprintf o "\ttmp=$$(basename \"$$i\"); \\\n";
-	      Printf.fprintf o "\techo \"virtual before\" > $${tmp}; \\\n";
-	      Printf.fprintf o "\techo \"virtual after\" >> $${tmp}; \\\n";
-	      Printf.fprintf o "\tcat $$i >> $${tmp}; \\\n";
-	      Printf.fprintf o
-		"\tsed s+fresh\\ identifier+symbol+g $${tmp} > $${tmp}.xx; \\\n";
-	      Printf.fprintf o "\tmv $${tmp}.xx $${tmp}; \\\n";
-	      Printf.fprintf o "\tspatch $${tmp} -D before --in-place . \\\n";
-	      List.iter
-		(function hfile ->
-		  Printf.fprintf o "\t--include %s \\\n" (to_ul hfile))
-		hfiles;
-	      Printf.fprintf o "\t--include-headers-for-types; \\\n";
-	      List.iter
-		(function hfile ->
-		  Printf.fprintf o
-		    "\tspatch $${tmp} -D before --in-place %s; \\\n"
-		    (to_ul hfile))
-		hfiles;
-	      Printf.fprintf o "\tdone\n"
-	    end)
 	cfiles;
       close_out o
     end

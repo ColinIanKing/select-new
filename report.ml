@@ -212,61 +212,6 @@ let do_report target linux tdir options =
 	  Printf.fprintf o "\t$(PREQUEL) --sp step%d.cocci $(ARGS) \\\n" i;
 	  Printf.fprintf o "\t--msg \"%s\"\n" (String.escaped (msg arg)))
 	args);
-  (match args with
-    [] ->
-      Printf.fprintf o "\nrall: redo1\n\n";
-      Printf.fprintf o "redo1: redo1.cocci\n";
-      Printf.fprintf o
-	"\t$(PREQUEL) --sp redo1.cocci $(RARGS) --gitgcompare ???\n"
-  | _ ->
-      Printf.fprintf o "\nrall:";
-      List.iteri (fun i _ -> Printf.fprintf o " redo%d" (i+1)) args;
-      Printf.fprintf o "\n";
-      List.iteri
-	(fun i arg ->
-	  let i = i + 1 in
-	  Printf.fprintf o "\nredo%d: redo%d.cocci\n" i i;
-	  let kwds =
-	    match arg with
-	      Unknown -> ["--TODO"]
-	    | UnknownFunction(fn) -> ["--gitscompare "^fn]
-	    | UnknownFunction2(fn,alt) ->
-		["--gitscompare "^fn;"--gitscompare "^alt]
-	    | UnknownVariable(cst) -> ["--gitscompare "^cst]
-	    | UnknownType(ty) ->
-		let ty = List.hd(List.rev(Str.split (Str.regexp " ") ty)) in
-		["--gitscompare "^ty]
-	    | UnknownTypedef(ty) ->
-		let ty = List.hd(List.rev(Str.split (Str.regexp " ") ty)) in
-		["--gitscompare "^ty]
-	    | UnknownField(_,fld) | UnknownFieldGeneric(fld) ->
-		["--gitscompare "^fld]
-	    | UnknownFieldOrType(ty,fld) ->
-		let ty = List.hd(List.rev(Str.split (Str.regexp " ") ty)) in
-		["--gitscompare "^fld;"--gitscompare "^ty]
-	    | Void1(exp) -> ["--gitscompare "^exp]
-	    | Void2(str,fld) -> ["--gitscompare "^fld]
-	    | TypeChange(exp) -> ["--gitscompare "^exp]
-	    | TypeChange2(str,fld) -> ["--gitscompare "^fld]
-	    | BadInitType(str,fld) -> ["--UNDOABLE"]
-	    | BadNonfnInit(str,fld) -> ["--UNDOABLE"]
-	    | BadArgType(str,fld) -> ["--UNDOABLE"]
-	    | TooManyArgs(fn) -> ["--gitgcompare "^fn]
-	    | TooFewArgs(fn) -> ["--gitgcompare "^fn] in
-	  List.iter
-	    (function kwd ->
-	      if String.length kwd > 30
-	      then
-		Printf.fprintf o
-		  "\t$(PREQUEL) --sp redo%d.cocci $(RARGS) \\\n %s \\\n"
-		  i kwd
-	      else
-		Printf.fprintf o
-		  "\t$(PREQUEL) --sp redo%d.cocci $(RARGS) %s \\\n"
-		  i kwd)
-	    kwds;
-	  Printf.fprintf o "\t--msg \"%s\"\n" (String.escaped (msg arg)))
-	args);
   close_out o;
   (* put the report in the directory *)
   let rout = dir^"/report.tex" in
