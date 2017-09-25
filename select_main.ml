@@ -561,11 +561,11 @@ let () =
     (* Fetch commit hash based on program arguments *)
     Printf.eprintf "Listing commits\n%!";
     let commits =
-      if not (!list = [])
-      then Commits.list_by_hash_list !list
-      else if not (!range = "")
-      then Commits.list_by_range !range
-      else Commits.list_by_dates !start_time !end_time
+        if is_list
+            then Commits.list_by_hash_list !list
+        else if is_range
+            then Commits.list_by_range !range
+            else Commits.list_by_dates !start_time !end_time
     in
     Printf.eprintf "Found %d commits\n%!" (List.length commits);
 
