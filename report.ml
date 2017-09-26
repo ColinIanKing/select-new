@@ -186,7 +186,7 @@ let do_report target linux tdir options =
   let temp = Sys.getenv "USER" in
   let cmd =
     Printf.sprintf
-      "sed s/COMMIT/%s/g %s/Makefile | sed s+FILE+%s+g | sed s+NAME+%s+g > %s"
+      "sed s/\\${COMMIT}/%s/g %s/Makefile | sed s+\\${FILE}+%s+g | sed s+\\${NAME}+%s+g > %s"
       commit tdir file temp mout in
   let _ = Sys.command cmd in
   let o = open_out_gen [Open_text; Open_append] 0o640 mout in
