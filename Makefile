@@ -16,7 +16,7 @@ EXEC=select_drivers
 
 all: $(EXEC)
 
-select_drivers: $(SRC)
+select_drivers: $(SRC) parmap gcc-reduce
 	ocamlopt -g -o $(EXEC) \
 	-I $(PARMAP_BUILD_DIR) -I $(GCC_REDUCE_BUILD_DIR) \
 	str.cmxa nums.cmxa unix.cmxa bigarray.cmxa \
