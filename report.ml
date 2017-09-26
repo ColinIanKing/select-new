@@ -184,10 +184,21 @@ let do_report target linux tdir options =
   (* put the Makefile in the directory *)
   let mout = dir^"/Makefile" in
   let temp = Sys.getenv "USER" in
-  let cmd =
-    Printf.sprintf
-      "sed s/\\${COMMIT}/%s/g %s/Makefile | sed s+\\${FILE}+%s+g | sed s+\\${NAME}+%s+g > %s"
-      commit tdir file temp mout in
+  let sed_cmd (placeholder, replacement) =
+    Printf.sprintf "sed 's/\\${%s}/%s/g'" placeholder
+      (Str.global_replace (Str.regexp_string "/") "\\/" replacement)
+  in
+  let to_replace = [ (* Arguments for template substitution *)
+      ("COMMIT", commit);
+      ("FILE", file);
+      ("NAME", temp);
+      ("TARGET", target);
+      ("GIT", linux)
+    ]
+  in
+  let cmd = Printf.sprintf "cat %s/Makefile | %s > %s"
+    tdir (String.concat " | " (List.map sed_cmd to_replace)) mout
+  in
   let _ = Sys.command cmd in
   let o = open_out_gen [Open_text; Open_append] 0o640 mout in
   (match args with
