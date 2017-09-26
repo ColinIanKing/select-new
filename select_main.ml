@@ -470,7 +470,7 @@ let options = [
     "--subsystem", Arg.String (fun x -> requirement := [x]),
     "targeted directory";
     "--cores", Arg.Set_int cores,
-        "number_of_cores Number of thread to run in parallel";
+        "number_of_cores Number of threads to run in parallel";
     "--debug", Arg.Set debug, " Print debug informations";
     "--backport", Arg.Set backport, " Backport from destination to source"]
 
@@ -483,7 +483,8 @@ let usage = Printf.sprintf "Usage: %s results_dir path_to_linux_git\nOptions:"
     Sys.executable_name
 
 let () =
-    Arg.parse (Arg.align options) anonymous usage;
+    let options = Arg.align options in
+    Arg.parse options anonymous usage;
 
     let is_list = !list <> [] in
     let is_range = !range <> "" in
