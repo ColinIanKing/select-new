@@ -266,13 +266,32 @@ let preparedir (commit, files) =
                     in
                     (if not (Sys.file_exists (directory ^ "/results"))
                     then begin
+                        (* Create Makefile *)
                         let cmd = Printf.sprintf "ln -sr %s/%s %s/results"
                             resdir report_dir_name directory
                         in
                         ignore (Sys.command cmd);
                         Printf.fprintf makefile "all:\n";
+
+                        (* Create links to c files *)
+                        let name = Filename.basename file in
+                        let cmd = Printf.sprintf "ln -sr %s/%s/%s %s/%s"
+                            resdir report_dir_name name directory name
+                        in
+                        ignore (Sys.command cmd);
+                        let cmd = Printf.sprintf "ln -sr %s/%s/%s_%s %s/%s_%s"
+                            resdir report_dir_name name !target directory name !target
+                        in
+                        ignore (Sys.command cmd);
+
+                        (* Create link to report.tex *)
+                        let cmd = Printf.sprintf "ln -sr %s/%s/report.tex %s/report.tex"
+                            resdir report_dir_name directory
+                        in
+                        ignore (Sys.command cmd);
                     end
                     );
+                    (* Fill Makefile with current step *)
                     Printf.fprintf makefile "\t$(MAKE) -C results step%d\n" (i+1);
                     let porg_file = Printf.sprintf "step%d.porg" (i+1) in
                     Printf.fprintf makefile "\tln -sr %s/%s/%s %s/%s\n"
