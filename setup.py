@@ -15,7 +15,7 @@ def locate(name):
         research_exp = directory + '*' + name
         try:
             result = subprocess.run(["locate", "--limit=1", research_exp],
-                                    stdout=subprocess.PIPE, check=1)
+                                    stdout=subprocess.PIPE, check=True)
             result_path = result.stdout.splitlines()[0]
             break
         except:
